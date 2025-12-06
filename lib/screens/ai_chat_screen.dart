@@ -774,17 +774,33 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  void _handleBillTypeSelection(String billType) async {
+  void _handleBillTypeSelection(String category) async {
+    // Show provider selection for the chosen category
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '📋 Select your $category provider:',
+        'alignment': Alignment.centerLeft,
+        'showBillProviderSelection': true,
+        'billCategory': category,
+      });
+    });
+    _scrollToBottom();
+  }
+
+  void _handleBillProviderSelection(String provider, String category) async {
     // Generate random bill amount
     final random = Random();
     final billAmount = (random.nextInt(400) + 50).toDouble(); // Random amount between RM50-RM450
+    
+    // Generate due date (7-30 days from now)
+    final dueDate = DateTime.now().add(Duration(days: random.nextInt(24) + 7));
 
     setState(() {
       _messages.add({
         'speaker': 'Agent',
-        'message': '📝 Here is your $billType invoice:',
+        'message': '📝 Here is your $provider invoice:',
         'alignment': Alignment.centerLeft,
-        'showInvoice': true,
       });
     });
     _scrollToBottom();
@@ -794,7 +810,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _messages.add({
         'speaker': 'Agent',
-        'message': '💵 Total amount due: RM ${billAmount.toStringAsFixed(2)}',
+        'message': '💵 Total amount due: RM ${billAmount.toStringAsFixed(2)}\n📅 Due date: ${dueDate.day}/${dueDate.month}/${dueDate.year}',
         'alignment': Alignment.centerLeft,
       });
     });
@@ -808,123 +824,81 @@ class _AiChatScreenState extends State<AiChatScreen> {
         'message': 'Please enter the amount you want to pay:',
         'alignment': Alignment.centerLeft,
         'showBillAmountInput': true,
-        'selectedBillType': billType,
+        'selectedBillType': provider,
+        'billCategory': category,
         'billAmount': billAmount,
+        'billDueDate': dueDate.toIso8601String(),
       });
     });
     _scrollToBottom();
   }
 
-  void _handleBillPayment(String amount, String billType, double totalBillAmount) async {
+  void _handleBillPayment(String amount, String billType, double totalBillAmount, {String? dueDate}) async {
     final paymentAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '🔐 Verifying fingerprint...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '📸 Verifying face...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '✓ Verification successful! Processing payment...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    // Check if payment is complete
     final remaining = totalBillAmount - paymentAmount;
-
-    if (remaining > 0.01) {
-      // Not fully paid - show remaining balance
-      setState(() {
-        _messages.add({
-          'speaker': 'Agent',
-          'message': '⚠️ Payment received: RM ${paymentAmount.toStringAsFixed(2)}',
-          'alignment': Alignment.centerLeft,
-        });
-      });
-      _scrollToBottom();
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      setState(() {
-        _messages.add({
-          'speaker': 'Agent',
-          'message': '💵 Remaining balance: RM ${remaining.toStringAsFixed(2)}',
-          'alignment': Alignment.centerLeft,
-        });
-      });
-      _scrollToBottom();
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Ask for remaining payment
-      setState(() {
-        _messages.add({
-          'speaker': 'Agent',
-          'message': 'Please pay the remaining amount:',
-          'alignment': Alignment.centerLeft,
-          'showBillAmountInput': true,
-          'selectedBillType': billType,
-          'billAmount': remaining,
-        });
-      });
-      _scrollToBottom();
-    } else {
-      // Fully paid - show success
-      setState(() {
-        _messages.add({
-          'speaker': 'Agent',
-          'message': '✓ Payment completed successfully!',
-          'alignment': Alignment.centerLeft,
-          'showInvoice': true,
-        });
-      });
-      _scrollToBottom();
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Generate bill payment receipt
-      final now = DateTime.now();
-
-      setState(() {
-        _messages.add({
-          'speaker': 'Agent',
-          'message': '📄 Payment receipt:',
-          'alignment': Alignment.centerLeft,
-          'showBillReceipt': true,
-          'billData': {
-            'billType': billType,
-            'amount': totalBillAmount,
-            'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
-            'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
-            'transactionId': 'BP${now.millisecondsSinceEpoch.toString().substring(7)}',
-            'status': 'Paid',
-          },
-        });
-      });
-      _scrollToBottom();
+    final isPaidInFull = remaining <= 0.01;
+    
+    // Parse due date
+    DateTime? dueDateParsed;
+    if (dueDate != null) {
+      dueDateParsed = DateTime.tryParse(dueDate);
     }
+    dueDateParsed ??= DateTime.now().add(const Duration(days: 14)); // Default 14 days
+
+    // Show biometric verification
+    _showBiometricVerification(
+      onSuccess: () async {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Verification successful! Processing payment...',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+
+        await Future.delayed(const Duration(milliseconds: 1000));
+
+        // Generate receipt data
+        final now = DateTime.now();
+        final transactionId = 'BP${now.millisecondsSinceEpoch.toString().substring(7)}';
+
+        // Show receipt (NO LOOP - just show the receipt with remaining balance info)
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': isPaidInFull ? '✓ Payment completed!' : '✓ Partial payment received!',
+            'alignment': Alignment.centerLeft,
+            'showBillReceipt': true,
+            'billData': {
+              'billType': billType,
+              'paidAmount': paymentAmount,
+              'totalAmount': totalBillAmount,
+              'remaining': remaining,
+              'transactionId': transactionId,
+              'dueDate': '${dueDateParsed!.day}/${dueDateParsed.month}/${dueDateParsed.year}',
+              'isPaidInFull': isPaidInFull,
+            },
+          });
+        });
+        _scrollToBottom();
+      },
+      onCancel: () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '❌ Verification cancelled. Payment not processed.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      },
+    );
+  }
+
+  void _handleBillPaymentLegacy(String amount, String billType, double totalBillAmount) async {
+    // Legacy method kept for backwards compatibility
+    _handleBillPayment(amount, billType, totalBillAmount);
   }
 
   @override
@@ -1289,7 +1263,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 textColor: AppColors.textPrimary,
                               ),
                             ),
-                            _BillTypeGrid(onBillTypeSelected: _handleBillTypeSelection),
+                            _BillCategoryGrid(onCategorySelected: _handleBillTypeSelection),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillProviderSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillProviderGrid(
+                              category: msg['billCategory'],
+                              onProviderSelected: (provider) => _handleBillProviderSelection(provider, msg['billCategory']),
+                            ),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
@@ -1310,67 +1305,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             _BillAmountInput(
                               billType: msg['selectedBillType'],
                               totalAmount: msg['billAmount'],
-                              onSubmit: (amount) => _handleBillPayment(amount, msg['selectedBillType'], msg['billAmount']),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                        );
-                      } else if (msg['showBillReceipt'] == true) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                              child: _MessageBubble(
-                                speaker: msg['speaker'],
-                                message: msg['message'],
-                                alignment: msg['alignment'],
-                                bubbleColor: AppColors.glassWhiteLight,
-                                textColor: AppColors.textPrimary,
+                              dueDate: msg['billDueDate'],
+                              onSubmit: (amount) => _handleBillPayment(
+                                amount, 
+                                msg['selectedBillType'], 
+                                msg['billAmount'],
+                                dueDate: msg['billDueDate'],
                               ),
-                            ),
-                            _BillPaymentReceipt(
-                              billData: msg['billData'],
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                        );
-                      } else if (msg['showBillTypeSelection'] == true) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                              child: _MessageBubble(
-                                speaker: msg['speaker'],
-                                message: msg['message'],
-                                alignment: msg['alignment'],
-                                bubbleColor: AppColors.glassWhiteLight,
-                                textColor: AppColors.textPrimary,
-                              ),
-                            ),
-                            _BillTypeGrid(onBillTypeSelected: _handleBillTypeSelection),
-                            const SizedBox(height: AppSpacing.md),
-                          ],
-                        );
-                      } else if (msg['showBillAmountInput'] == true) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                              child: _MessageBubble(
-                                speaker: msg['speaker'],
-                                message: msg['message'],
-                                alignment: msg['alignment'],
-                                bubbleColor: AppColors.glassWhiteLight,
-                                textColor: AppColors.textPrimary,
-                              ),
-                            ),
-                            _BillAmountInput(
-                              billType: msg['selectedBillType'],
-                              totalAmount: msg['billAmount'],
-                              onSubmit: (amount) => _handleBillPayment(amount, msg['selectedBillType'], msg['billAmount']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -5278,5 +5219,789 @@ class _CustomBankFormState extends State<_CustomBankForm> {
         ],
       ),
     );
+  }
+}
+
+// Biometric verification sheet for AI chat
+class _AiBiometricSheet extends StatefulWidget {
+  const _AiBiometricSheet({
+    required this.onSuccess,
+    required this.onCancel,
+  });
+
+  final VoidCallback onSuccess;
+  final VoidCallback onCancel;
+
+  @override
+  State<_AiBiometricSheet> createState() => _AiBiometricSheetState();
+}
+
+class _AiBiometricSheetState extends State<_AiBiometricSheet>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  int _currentStep = 0;
+  bool _isVerifying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _startVerification();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _startVerification() async {
+    setState(() => _isVerifying = true);
+    
+    // Step 1: Fingerprint
+    _animationController.repeat();
+    await Future.delayed(const Duration(milliseconds: 1800));
+    setState(() => _currentStep = 1);
+    
+    // Step 2: Face
+    await Future.delayed(const Duration(milliseconds: 1800));
+    setState(() => _currentStep = 2);
+    
+    // Success
+    _animationController.stop();
+    await Future.delayed(const Duration(milliseconds: 500));
+    widget.onSuccess();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Animated icon
+          AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.accent.withOpacity(0.3 + (_animationController.value * 0.2)),
+                      AppColors.accent.withOpacity(0.1),
+                    ],
+                  ),
+                ),
+                child: Icon(
+                  _currentStep == 0
+                      ? Icons.fingerprint
+                      : _currentStep == 1
+                          ? Icons.face
+                          : Icons.check_circle,
+                  size: 60,
+                  color: _currentStep == 2 ? AppColors.positive : AppColors.accent,
+                ),
+              );
+            },
+          ),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          Text(
+            _currentStep == 0
+                ? 'Verifying Fingerprint...'
+                : _currentStep == 1
+                    ? 'Verifying Face...'
+                    : 'Verification Complete!',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          
+          const SizedBox(height: AppSpacing.sm),
+          
+          Text(
+            _currentStep == 0
+                ? 'Please place your finger on the sensor'
+                : _currentStep == 1
+                    ? 'Looking for your face...'
+                    : 'Your identity has been confirmed',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Cancel button (only show during verification)
+          if (_isVerifying && _currentStep < 2)
+            TextButton(
+              onPressed: widget.onCancel,
+              child: const Text('Cancel'),
+            ),
+          
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  }
+}
+
+// Bill category selection grid (first step)
+class _BillCategoryGrid extends StatelessWidget {
+  const _BillCategoryGrid({required this.onCategorySelected});
+
+  final void Function(String) onCategorySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = [
+      {'name': 'Utilities', 'icon': Icons.home, 'color': Colors.orange},
+      {'name': 'Telecommunications', 'icon': Icons.wifi, 'color': Colors.blue},
+      {'name': 'Entertainment', 'icon': Icons.tv, 'color': Colors.purple},
+      {'name': 'Insurance', 'icon': Icons.security, 'color': Colors.green},
+      {'name': 'Credit Card', 'icon': Icons.credit_card, 'color': AppColors.accent},
+      {'name': 'Others', 'icon': Icons.more_horiz, 'color': Colors.grey},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Bill Category',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: AppSpacing.sm,
+              mainAxisSpacing: AppSpacing.sm,
+              childAspectRatio: 2.2,
+            ),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              return InkWell(
+                onTap: () => onCategorySelected(category['name'] as String),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: (category['color'] as Color).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    border: Border.all(
+                      color: (category['color'] as Color).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        category['icon'] as IconData,
+                        color: category['color'] as Color,
+                        size: 24,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          category['name'] as String,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: category['color'] as Color,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Bill provider selection grid (second step - based on category)
+class _BillProviderGrid extends StatelessWidget {
+  const _BillProviderGrid({
+    required this.category,
+    required this.onProviderSelected,
+  });
+
+  final String category;
+  final void Function(String) onProviderSelected;
+
+  static const Map<String, List<Map<String, dynamic>>> _providers = {
+    'Utilities': [
+      {'name': 'TNB (Tenaga Nasional)', 'icon': Icons.electrical_services, 'color': Colors.orange},
+      {'name': 'Air Selangor', 'icon': Icons.water_drop, 'color': Colors.blue},
+      {'name': 'SYABAS', 'icon': Icons.water_drop, 'color': Colors.lightBlue},
+      {'name': 'SAJ (Johor)', 'icon': Icons.water_drop, 'color': Colors.cyan},
+      {'name': 'IWK', 'icon': Icons.sanitizer, 'color': Colors.teal},
+      {'name': 'Indah Water', 'icon': Icons.water, 'color': Colors.blueGrey},
+    ],
+    'Telecommunications': [
+      {'name': 'TM (Unifi)', 'icon': Icons.wifi, 'color': Colors.orange},
+      {'name': 'Maxis', 'icon': Icons.phone_android, 'color': Colors.green},
+      {'name': 'Celcom', 'icon': Icons.phone_android, 'color': Colors.blue},
+      {'name': 'Digi', 'icon': Icons.phone_android, 'color': Colors.yellow},
+      {'name': 'U Mobile', 'icon': Icons.phone_android, 'color': Colors.orange},
+      {'name': 'Yes 4G', 'icon': Icons.phone_android, 'color': Colors.purple},
+      {'name': 'Time Internet', 'icon': Icons.wifi, 'color': Colors.red},
+    ],
+    'Entertainment': [
+      {'name': 'Astro', 'icon': Icons.tv, 'color': Colors.red},
+      {'name': 'Netflix', 'icon': Icons.play_circle, 'color': Colors.red},
+      {'name': 'Disney+ Hotstar', 'icon': Icons.play_circle, 'color': Colors.blue},
+      {'name': 'Spotify', 'icon': Icons.music_note, 'color': Colors.green},
+      {'name': 'YouTube Premium', 'icon': Icons.play_circle, 'color': Colors.red},
+    ],
+    'Insurance': [
+      {'name': 'Prudential', 'icon': Icons.security, 'color': Colors.red},
+      {'name': 'AIA', 'icon': Icons.security, 'color': Colors.pink},
+      {'name': 'Great Eastern', 'icon': Icons.security, 'color': Colors.blue},
+      {'name': 'Allianz', 'icon': Icons.security, 'color': Colors.indigo},
+      {'name': 'Zurich', 'icon': Icons.security, 'color': Colors.blueGrey},
+      {'name': 'AXA', 'icon': Icons.security, 'color': Colors.blue},
+    ],
+    'Credit Card': [
+      {'name': 'Maybank Credit Card', 'icon': Icons.credit_card, 'color': Colors.yellow},
+      {'name': 'CIMB Credit Card', 'icon': Icons.credit_card, 'color': Colors.red},
+      {'name': 'Public Bank Credit Card', 'icon': Icons.credit_card, 'color': Colors.pink},
+      {'name': 'RHB Credit Card', 'icon': Icons.credit_card, 'color': Colors.blue},
+      {'name': 'Hong Leong Credit Card', 'icon': Icons.credit_card, 'color': Colors.green},
+      {'name': 'AmBank Credit Card', 'icon': Icons.credit_card, 'color': Colors.orange},
+    ],
+    'Others': [
+      {'name': 'PTPTN', 'icon': Icons.school, 'color': Colors.blue},
+      {'name': 'KWSP (EPF)', 'icon': Icons.account_balance, 'color': Colors.purple},
+      {'name': 'LHDN (Income Tax)', 'icon': Icons.receipt_long, 'color': Colors.green},
+      {'name': 'JPJ (Road Tax)', 'icon': Icons.directions_car, 'color': Colors.orange},
+      {'name': 'Zakat', 'icon': Icons.volunteer_activism, 'color': Colors.teal},
+    ],
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final providers = _providers[category] ?? _providers['Others']!;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.arrow_back_ios, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                category,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Select Provider',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: providers.length,
+            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final provider = providers[index];
+              return InkWell(
+                onTap: () => onProviderSelected(provider['name'] as String),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: (provider['color'] as Color).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    border: Border.all(
+                      color: (provider['color'] as Color).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: (provider['color'] as Color).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                        ),
+                        child: Icon(
+                          provider['icon'] as IconData,
+                          color: provider['color'] as Color,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          provider['name'] as String,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: provider['color'] as Color,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Bill amount input widget
+class _BillAmountInput extends StatefulWidget {
+  const _BillAmountInput({
+    required this.billType,
+    required this.totalAmount,
+    required this.onSubmit,
+    this.dueDate,
+  });
+
+  final String billType;
+  final double totalAmount;
+  final void Function(String) onSubmit;
+  final String? dueDate;
+
+  @override
+  State<_BillAmountInput> createState() => _BillAmountInputState();
+}
+
+class _BillAmountInputState extends State<_BillAmountInput> {
+  final _amountController = TextEditingController();
+  bool _payFull = true;
+
+  String get _formattedDueDate {
+    if (widget.dueDate == null) return 'N/A';
+    final date = DateTime.tryParse(widget.dueDate!);
+    if (date == null) return widget.dueDate!;
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.text = widget.totalAmount.toStringAsFixed(2);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pay ${widget.billType}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Total due with due date
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total Amount Due:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'RM ${widget.totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                  ],
+                ),
+                if (widget.dueDate != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Due Date:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        _formattedDueDate,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: AppSpacing.md),
+          
+          // Pay full / Partial
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _payFull = true;
+                      _amountController.text = widget.totalAmount.toStringAsFixed(2);
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: _payFull ? AppColors.accent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      border: Border.all(color: AppColors.accent),
+                    ),
+                    child: Text(
+                      'Pay Full',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _payFull ? Colors.white : AppColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _payFull = false;
+                      _amountController.clear();
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: !_payFull ? AppColors.accent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      border: Border.all(color: AppColors.accent),
+                    ),
+                    child: Text(
+                      'Partial',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: !_payFull ? Colors.white : AppColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: AppSpacing.md),
+          
+          // Amount input
+          TextField(
+            controller: _amountController,
+            keyboardType: TextInputType.number,
+            enabled: !_payFull,
+            decoration: InputDecoration(
+              labelText: 'Amount to Pay',
+              prefixText: 'RM ',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Pay button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => widget.onSubmit(_amountController.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: const Text(
+                'Pay Now',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Bill payment receipt widget
+class _BillPaymentReceipt extends StatelessWidget {
+  const _BillPaymentReceipt({required this.billData});
+
+  final Map<String, dynamic> billData;
+
+  @override
+  Widget build(BuildContext context) {
+    final billType = billData['billType'] ?? 'Unknown';
+    final paidAmount = (billData['paidAmount'] ?? 0.0) is int 
+        ? (billData['paidAmount'] as int).toDouble() 
+        : (billData['paidAmount'] ?? 0.0) as double;
+    final remaining = (billData['remaining'] ?? 0.0) is int 
+        ? (billData['remaining'] as int).toDouble() 
+        : (billData['remaining'] ?? 0.0) as double;
+    final transactionId = billData['transactionId'] ?? 'TXN${DateTime.now().millisecondsSinceEpoch}';
+    final dueDate = billData['dueDate'] as String?;
+    final isPaidInFull = remaining <= 0.01;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Status icon
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isPaidInFull
+                  ? AppColors.positive.withOpacity(0.15)
+                  : Colors.orange.withOpacity(0.15),
+            ),
+            child: Icon(
+              isPaidInFull ? Icons.check_circle : Icons.info,
+              size: 40,
+              color: isPaidInFull ? AppColors.positive : Colors.orange,
+            ),
+          ),
+          
+          const SizedBox(height: AppSpacing.md),
+          
+          Text(
+            isPaidInFull ? 'Payment Successful!' : 'Partial Payment Made',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isPaidInFull ? AppColors.positive : Colors.orange,
+            ),
+          ),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Receipt details
+          _buildReceiptRow('Bill Type', billType),
+          _buildReceiptRow('Amount Paid', 'RM ${paidAmount.toStringAsFixed(2)}'),
+          if (!isPaidInFull) ...[
+            _buildReceiptRow('Remaining', 'RM ${remaining.toStringAsFixed(2)}', isHighlight: true),
+            if (dueDate != null)
+              _buildReceiptRow('Payment Due By', dueDate, isHighlight: true),
+          ],
+          _buildReceiptRow('Transaction ID', transactionId),
+          _buildReceiptRow('Date', _formatDate(DateTime.now())),
+          _buildReceiptRow('Time', _formatTime(DateTime.now())),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Status banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: isPaidInFull
+                  ? AppColors.positive.withOpacity(0.1)
+                  : Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  isPaidInFull
+                      ? '✓ Your bill has been fully paid'
+                      : '⚠ Outstanding balance: RM ${remaining.toStringAsFixed(2)}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isPaidInFull ? AppColors.positive : Colors.orange,
+                  ),
+                ),
+                if (!isPaidInFull && dueDate != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Due by: $dueDate',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isHighlight ? Colors.orange : AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  String _formatTime(DateTime date) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
