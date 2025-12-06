@@ -126,7 +126,8 @@ class SecondaryButton extends StatelessWidget {
   final double height;
   final Color borderColor;
   final Color textColor;
-  final IconData? icon; // Added Icon support
+  final IconData? icon;
+  final bool isLoading; // Added loading state support
 
   const SecondaryButton({
     super.key,
@@ -137,6 +138,7 @@ class SecondaryButton extends StatelessWidget {
     this.borderColor = AppColors.accent,
     this.textColor = AppColors.accent,
     this.icon,
+    this.isLoading = false, // Defaults to false
   });
 
   @override
@@ -145,7 +147,7 @@ class SecondaryButton extends StatelessWidget {
       width: width,
       height: height,
       child: OutlinedButton(
-        onPressed: onPressed,
+        onPressed: isLoading ? null : onPressed, // Disable button while loading
         style: OutlinedButton.styleFrom(
           foregroundColor: textColor,
           side: BorderSide(color: borderColor, width: 1.5),
@@ -153,19 +155,29 @@ class SecondaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: textColor),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              text,
-              style: AppTextStyles.buttonMedium.copyWith(color: textColor),
-            ),
-          ],
-        ),
+        child: isLoading
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(textColor),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18, color: textColor),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    text,
+                    style:
+                        AppTextStyles.buttonMedium.copyWith(color: textColor),
+                  ),
+                ],
+              ),
       ),
     );
   }
