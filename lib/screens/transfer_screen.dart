@@ -86,11 +86,12 @@ class _TransferScreenState extends State<TransferScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () {
-            // Check if we are in RootShell (IndexedStack) or standalone
             if (widget.onBackToHome != null) {
               widget.onBackToHome!();
+            } else if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
             } else {
-              Navigator.pop(context);
+              Navigator.of(context).pushReplacementNamed('/');
             }
           },
         ),
