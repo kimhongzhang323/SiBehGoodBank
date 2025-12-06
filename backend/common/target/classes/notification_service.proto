@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package com.sibehgoodbank.grpc.notification;
+
+option java_multiple_files = true;
+option java_package = "com.sibehgoodbank.grpc.notification";
+option java_outer_classname = "NotificationServiceProto";
+
+// Notification Service gRPC definitions for inter-service communication
+
+// Send notification request
+message SendNotificationRequest {
+    string user_id = 1;
+    string type = 2;            // EMAIL, SMS, PUSH
+    string template = 3;        // Template name
+    string subject = 4;
+    string body = 5;
+    map<string, string> variables = 6;  // Template variables
+    string priority = 7;        // LOW, NORMAL, HIGH, URGENT
+    string channel = 8;         // Preferred channel if type not specified
+}
+
+// Send batch notifications
+message SendBatchNotificationRequest {
+    repeated SendNotificationRequest notifications = 1;
+}
+
+// Notification response
+message NotificationResponse {
+    string notification_id = 1;
+    string status = 2;          // QUEUED, SENT, DELIVERED, FAILED
+    string message = 3;
+}
+
+// Batch notification response
+message BatchNotificationResponse {
+    repeated NotificationResponse results = 1;
+    int32 successful = 2;
+    int32 failed = 3;
+}
+
+// Get notification request
+message GetNotificationRequest {
+    string notification_id = 1;
+}
+
+// Get user notifications
+message GetUserNotificationsRequest {
+    string user_id = 1;
+    int32 page = 2;
+    int32 size = 3;
+    bool unread_only = 4;
+}
+
+// Full notification details
+message NotificationDetails {
+    string notification_id = 1;
+    string user_id = 2;
+    string type = 3;
+    string subject = 4;
+    string body = 5;
+    string status = 6;
+    bool read = 7;
+    int64 created_at = 8;
+    int64 sent_at = 9;
+    int64 read_at = 10;
+}
+
+// User notifications response
+message UserNotificationsResponse {
+    repeated NotificationDetails notifications = 1;
+    int32 total = 2;
+    int32 unread_count = 3;
+}
+
+// Mark notification as read
+message MarkAsReadRequest {
+    string notification_id = 1;
+    string user_id = 2;
+}
+
+message MarkAsReadResponse {
+    bool success = 1;
+}
+
+// Mark all as read
+message MarkAllAsReadRequest {
+    string user_id = 1;
+}
+
+message MarkAllAsReadResponse {
+    int32 updated_count = 1;
+}
+
+// Notification preferences
+message GetPreferencesRequest {
+    string user_id = 1;
+}
+
+message UpdatePreferencesRequest {
+    string user_id = 1;
+    bool email_enabled = 2;
+    bool sms_enabled = 3;
+    bool push_enabled = 4;
+    bool marketing_enabled = 5;
+    repeated string subscribed_topics = 6;
+}
+
+message PreferencesResponse {
+    string user_id = 1;
+    bool email_enabled = 2;
+    bool sms_enabled = 3;
+    bool push_enabled = 4;
+    bool marketing_enabled = 5;
+    repeated string subscribed_topics = 6;
+}
+
+// Register device for push notifications
+message RegisterDeviceRequest {
+    string user_id = 1;
+    string device_token = 2;
+    string platform = 3;        // IOS, ANDROID, WEB
+    string device_name = 4;
+}
+
+message RegisterDeviceResponse {
+    bool success = 1;
+    string device_id = 2;
+}
+
+// Unregister device
+message UnregisterDeviceRequest {
+    string user_id = 1;
+    string device_token = 2;
+}
+
+// Notification Service
+service NotificationService {
+    // Send single notification
+    rpc SendNotification(SendNotificationRequest) returns (NotificationResponse);
+    
+    // Send batch notifications
+    rpc SendBatchNotification(SendBatchNotificationRequest) returns (BatchNotificationResponse);
+    
+    // Get notification by ID
+    rpc GetNotification(GetNotificationRequest) returns (NotificationDetails);
+    
+    // Get user's notifications
+    rpc GetUserNotifications(GetUserNotificationsRequest) returns (UserNotificationsResponse);
+    
+    // Mark notification as read
+    rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+    
+    // Mark all notifications as read
+    rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
+    
+    // Get notification preferences
+    rpc GetPreferences(GetPreferencesRequest) returns (PreferencesResponse);
+    
+    // Update notification preferences
+    rpc UpdatePreferences(UpdatePreferencesRequest) returns (PreferencesResponse);
+    
+    // Register device for push notifications
+    rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+    
+    // Unregister device
+    rpc UnregisterDevice(UnregisterDeviceRequest) returns (RegisterDeviceResponse);
+}

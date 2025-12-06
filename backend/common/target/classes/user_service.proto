@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package com.sibehgoodbank.grpc.user;
+
+option java_multiple_files = true;
+option java_package = "com.sibehgoodbank.grpc.user";
+option java_outer_classname = "UserServiceProto";
+
+// User Service gRPC definitions for inter-service communication
+
+// User lookup request by ID
+message GetUserRequest {
+    string user_id = 1;
+}
+
+// User lookup request by email
+message GetUserByEmailRequest {
+    string email = 1;
+}
+
+// User profile response
+message UserResponse {
+    string user_id = 1;
+    string email = 2;
+    string first_name = 3;
+    string last_name = 4;
+    string phone_number = 5;
+    string status = 6;  // ACTIVE, INACTIVE, SUSPENDED, PENDING_VERIFICATION
+    string role = 7;    // USER, ADMIN, STAFF
+    string kyc_status = 8;  // PENDING, VERIFIED, REJECTED
+    int64 created_at = 9;   // Unix timestamp
+    int64 updated_at = 10;
+}
+
+// User validation request (for other services to validate user)
+message ValidateUserRequest {
+    string user_id = 1;
+}
+
+// User validation response
+message ValidateUserResponse {
+    bool valid = 1;
+    bool active = 2;
+    bool kyc_verified = 3;
+    string message = 4;
+}
+
+// Batch user lookup
+message GetUsersRequest {
+    repeated string user_ids = 1;
+}
+
+message GetUsersResponse {
+    repeated UserResponse users = 1;
+}
+
+// User existence check
+message UserExistsRequest {
+    string user_id = 1;
+}
+
+message UserExistsResponse {
+    bool exists = 1;
+}
+
+// User Service
+service UserService {
+    // Get user by ID
+    rpc GetUser(GetUserRequest) returns (UserResponse);
+    
+    // Get user by email
+    rpc GetUserByEmail(GetUserByEmailRequest) returns (UserResponse);
+    
+    // Validate user for other services
+    rpc ValidateUser(ValidateUserRequest) returns (ValidateUserResponse);
+    
+    // Get multiple users by IDs
+    rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+    
+    // Check if user exists
+    rpc UserExists(UserExistsRequest) returns (UserExistsResponse);
+}

@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package com.sibehgoodbank.grpc.account;
+
+option java_multiple_files = true;
+option java_package = "com.sibehgoodbank.grpc.account";
+option java_outer_classname = "AccountServiceProto";
+
+// Account Service gRPC definitions for inter-service communication
+
+// Account lookup request
+message GetAccountRequest {
+    string account_id = 1;
+}
+
+// Account lookup by number
+message GetAccountByNumberRequest {
+    string account_number = 1;
+}
+
+// Get accounts by user
+message GetAccountsByUserRequest {
+    string user_id = 1;
+}
+
+// Account response
+message AccountResponse {
+    string account_id = 1;
+    string user_id = 2;
+    string account_number = 3;
+    string account_type = 4;    // SAVINGS, CHECKING, FIXED_DEPOSIT
+    string currency = 5;
+    string balance = 6;         // String to preserve decimal precision
+    string available_balance = 7;
+    string status = 8;          // ACTIVE, INACTIVE, FROZEN, CLOSED
+    int64 created_at = 9;
+}
+
+// Multiple accounts response
+message AccountsResponse {
+    repeated AccountResponse accounts = 1;
+}
+
+// Account validation request
+message ValidateAccountRequest {
+    string account_id = 1;
+    string user_id = 2;         // Optional: verify ownership
+}
+
+// Account validation response
+message ValidateAccountResponse {
+    bool valid = 1;
+    bool active = 2;
+    bool belongs_to_user = 3;
+    string message = 4;
+}
+
+// Balance check request
+message GetBalanceRequest {
+    string account_id = 1;
+}
+
+// Balance response
+message BalanceResponse {
+    string account_id = 1;
+    string balance = 2;
+    string available_balance = 3;
+    string currency = 4;
+    int64 as_of_timestamp = 5;
+}
+
+// Balance update request (internal use)
+message UpdateBalanceRequest {
+    string account_id = 1;
+    string amount = 2;          // Positive for credit, negative for debit
+    string transaction_type = 3; // DEBIT, CREDIT, HOLD, RELEASE
+    string reference_id = 4;    // Transaction reference
+}
+
+// Balance update response
+message UpdateBalanceResponse {
+    bool success = 1;
+    string new_balance = 2;
+    string new_available_balance = 3;
+    string message = 4;
+}
+
+// Hold funds request (for pending transactions)
+message HoldFundsRequest {
+    string account_id = 1;
+    string amount = 2;
+    string reference_id = 3;
+    int64 expiry_timestamp = 4; // When the hold expires
+}
+
+// Release hold request
+message ReleaseHoldRequest {
+    string account_id = 1;
+    string reference_id = 2;
+    bool capture = 3;           // true = complete transaction, false = cancel
+}
+
+message HoldResponse {
+    bool success = 1;
+    string hold_id = 2;
+    string message = 3;
+}
+
+// Account existence check
+message AccountExistsRequest {
+    string account_id = 1;
+}
+
+message AccountExistsResponse {
+    bool exists = 1;
+}
+
+// Account Service
+service AccountService {
+    // Get account by ID
+    rpc GetAccount(GetAccountRequest) returns (AccountResponse);
+    
+    // Get account by account number
+    rpc GetAccountByNumber(GetAccountByNumberRequest) returns (AccountResponse);
+    
+    // Get all accounts for a user
+    rpc GetAccountsByUser(GetAccountsByUserRequest) returns (AccountsResponse);
+    
+    // Validate account
+    rpc ValidateAccount(ValidateAccountRequest) returns (ValidateAccountResponse);
+    
+    // Get account balance
+    rpc GetBalance(GetBalanceRequest) returns (BalanceResponse);
+    
+    // Update account balance (internal)
+    rpc UpdateBalance(UpdateBalanceRequest) returns (UpdateBalanceResponse);
+    
+    // Hold funds for pending transaction
+    rpc HoldFunds(HoldFundsRequest) returns (HoldResponse);
+    
+    // Release or capture held funds
+    rpc ReleaseHold(ReleaseHoldRequest) returns (HoldResponse);
+    
+    // Check if account exists
+    rpc AccountExists(AccountExistsRequest) returns (AccountExistsResponse);
+}
