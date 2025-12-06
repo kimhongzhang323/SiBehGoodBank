@@ -23,6 +23,7 @@ class CurrencyInfo {
     required this.exchangeRate,
   });
 }
+import "transfer_screen.dart";
 
 /// Home / Balance Overview screen
 class HomeScreen extends StatefulWidget {
@@ -426,7 +427,11 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Transfer',
             iconColor: AppColors.accent,
             onTap: () {
-              // Handle transfer
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TransferScreen(),
+                ),
+              );
             },
           ),
           QuickActionButton(
