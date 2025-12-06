@@ -4,7 +4,7 @@ import '../widgets/widgets.dart';
 import 'transfer_receipt_screen.dart';
 
 class ReceiveScreen extends StatefulWidget {
-  final String currencySymbol; // Added currency symbol
+  final String currencySymbol;
 
   const ReceiveScreen({
     super.key,
@@ -20,7 +20,18 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   bool _isLoading = false;
 
   void _initiateReceive() {
-    if (_amountController.text.isEmpty) return;
+    // 1. Error Handling: Empty Input
+    if (_amountController.text.isEmpty) {
+      _showError('Please enter an amount to receive.');
+      return;
+    }
+
+    // 2. Error Handling: Invalid Amount
+    final value = double.tryParse(_amountController.text);
+    if (value == null || value <= 0) {
+      _showError('Please enter a valid amount.');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -45,11 +56,21 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       MaterialPageRoute(
         builder: (context) => TransferReceiptScreen(
           amount: _amountController.text,
-          currencySymbol: widget.currencySymbol, // Pass symbol to receipt
+          currencySymbol: widget.currencySymbol,
           recipientName: 'Sender Name',
           recipientAccount: '**** 1234',
           isReceiving: true,
         ),
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.negative,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -82,7 +103,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               style: AppTextStyles.displayMedium,
               decoration: InputDecoration(
-                prefixText: '${widget.currencySymbol} ', // Use dynamic symbol
+                prefixText: '${widget.currencySymbol} ',
                 hintText: '0.00',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -157,6 +178,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   void _showPasswordPrompt(BuildContext context, String userRole) {
     showDialog(
       context: context,
+      barrierDismissible: false, // Force user to use buttons
       builder: (ctx) => AlertDialog(
         title: Text('$userRole Password'),
         content: const TextField(
@@ -166,7 +188,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              Navigator.pop(ctx);
+              // 3. Error Handling: Reset loading on cancel
+              setState(() => _isLoading = false);
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
