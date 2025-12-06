@@ -119,14 +119,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String formatAmount(double amountMYR, {bool allowHide = true}) {
     if (_isBalanceHidden && allowHide) {
-      return '${selectedCurrency.symbol}••••••';
+      return '${selectedCurrency.symbol} ••••••';
     }
     final converted = amountMYR * selectedCurrency.exchangeRate;
     final formatted = converted.toStringAsFixed(2).replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (Match m) => '${m[1]},',
         );
-    return '${selectedCurrency.symbol}$formatted';
+    return '${selectedCurrency.symbol} $formatted';
   }
 
   void _showCurrencyPicker(BuildContext context) {
@@ -467,11 +467,28 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Total Balance',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Balance',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary.withOpacity(0.8),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        width: 40,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
                   ),
                   GestureDetector(
                     onTap: () {
@@ -480,33 +497,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         _isBalanceHidden
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
                         size: 20,
-                        color: AppColors.textPrimary,
+                        color: AppColors.textPrimary.withOpacity(0.7),
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
 
               // Balance amount
               Text(
                 formatAmount(totalBalanceMYR),
                 style: const TextStyle(
-                  fontSize: 44,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 42,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
-                  letterSpacing: -1.5,
+                  letterSpacing: 1.5,
                 ),
               ),
 
@@ -762,7 +779,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const NewsScreen()),
                 ),
-                child: const Text(
+                child: Text(
                   'See all',
                   style: TextStyle(
                     fontSize: 13,
@@ -775,7 +792,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           SizedBox(
-            height: 160,
+            height: 140,
             child: PageView.builder(
               controller: _carouselController,
               itemCount: banners.length,
@@ -795,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withOpacity(0.08),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -803,45 +820,51 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        banners[index],
-                        fit: BoxFit.cover,
+                      child: Container(
                         width: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppColors.accent.withOpacity(0.8),
-                                  AppColors.softPurple,
-                                ],
+                        height: 140,
+                        color: AppColors.cream,
+                        child: Image.asset(
+                          banners[index],
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: 140,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    AppColors.accent.withOpacity(0.8),
+                                    AppColors.lightGreen,
+                                  ],
+                                ),
                               ),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.campaign,
-                                    color: Colors.white,
-                                    size: 40,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Promo ${index + 1}',
-                                    style: const TextStyle(
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.campaign,
                                       color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                                      size: 36,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Promo ${index + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
