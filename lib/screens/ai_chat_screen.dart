@@ -401,50 +401,65 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _handleApproval(Map<String, String> formData, String tool) async {
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '🔐 Please verify with your fingerprint...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
+    // Show biometric verification sheet
+    _showBiometricVerification(
+      onSuccess: () async {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Verification successful! Processing transfer...',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
 
-    await Future.delayed(const Duration(milliseconds: 2000));
+        await Future.delayed(const Duration(milliseconds: 1500));
 
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '📸 Now verifying with face recognition...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Transfer completed successfully!',
+            'alignment': Alignment.centerLeft,
+            'showReceipt': true,
+            'formData': formData,
+            'selectedTool': tool,
+          });
+        });
+        _scrollToBottom();
+      },
+      onCancel: () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '❌ Verification cancelled. Transfer was not processed.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      },
+    );
+  }
 
-    await Future.delayed(const Duration(milliseconds: 2000));
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '✓ Verification successful! Processing transfer...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '✓ Transfer completed successfully!',
-        'alignment': Alignment.centerLeft,
-        'showReceipt': true,
-        'formData': formData,
-        'selectedTool': tool,
-      });
-    });
-    _scrollToBottom();
+  void _showBiometricVerification({
+    required VoidCallback onSuccess,
+    required VoidCallback onCancel,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AiBiometricSheet(
+        onSuccess: () {
+          Navigator.pop(context);
+          onSuccess();
+        },
+        onCancel: () {
+          Navigator.pop(context);
+          onCancel();
+        },
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -487,63 +502,56 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _handleWithdrawalAmount(String amount, String bank) async {
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '🔐 Verifying fingerprint...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
+    // Show biometric verification sheet
+    _showBiometricVerification(
+      onSuccess: () async {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Verification successful! Processing withdrawal...',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
 
-    await Future.delayed(const Duration(milliseconds: 1500));
+        await Future.delayed(const Duration(milliseconds: 1000));
 
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '📸 Verifying face...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
+        // Generate withdrawal receipt
+        final now = DateTime.now();
+        final originalBalance = 5000.00;
+        final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+        final newBalance = originalBalance - withdrawalAmount;
 
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '✓ Verification successful! Processing withdrawal...',
-        'alignment': Alignment.centerLeft,
-      });
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    // Generate withdrawal receipt
-    final now = DateTime.now();
-    final originalBalance = 5000.00;
-    final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
-    final newBalance = originalBalance - withdrawalAmount;
-
-    setState(() {
-      _messages.add({
-        'speaker': 'Agent',
-        'message': '✓ Cash withdrawal completed!',
-        'alignment': Alignment.centerLeft,
-        'showWithdrawalReceipt': true,
-        'withdrawalData': {
-          'bank': bank,
-          'amount': withdrawalAmount,
-          'originalBalance': originalBalance,
-          'newBalance': newBalance,
-          'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
-          'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
-          'transactionId': 'WD${now.millisecondsSinceEpoch.toString().substring(7)}',
-        },
-      });
-    });
-    _scrollToBottom();
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Cash withdrawal completed!',
+            'alignment': Alignment.centerLeft,
+            'showWithdrawalReceipt': true,
+            'withdrawalData': {
+              'bank': bank,
+              'amount': withdrawalAmount,
+              'originalBalance': originalBalance,
+              'newBalance': newBalance,
+              'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
+              'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+              'transactionId': 'WD${now.millisecondsSinceEpoch.toString().substring(7)}',
+            },
+          });
+        });
+        _scrollToBottom();
+      },
+      onCancel: () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '❌ Verification cancelled. Withdrawal was not processed.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      },
+    );
   }
 
   String _getMonthName(int month) {
@@ -2755,6 +2763,178 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Biometric verification sheet for AI chat screen
+/// Shows animated Face ID and Fingerprint verification
+class _AiBiometricSheet extends StatefulWidget {
+  final VoidCallback onSuccess;
+  final VoidCallback onCancel;
+
+  const _AiBiometricSheet({
+    required this.onSuccess,
+    required this.onCancel,
+  });
+
+  @override
+  State<_AiBiometricSheet> createState() => _AiBiometricSheetState();
+}
+
+class _AiBiometricSheetState extends State<_AiBiometricSheet> {
+  int _stage = 0;
+  String _statusText = 'Scanning Face ID...';
+  bool _isVerifying = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _startSimulation();
+  }
+
+  void _startSimulation() async {
+    // Stage 0: Face ID
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {
+      _stage = 1;
+      _statusText = 'Place Finger on Sensor...';
+    });
+    
+    // Stage 1: Fingerprint
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {
+      _stage = 2;
+      _statusText = 'Verified';
+      _isVerifying = false;
+    });
+    
+    // Short delay before calling success
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    widget.onSuccess();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Title
+          Text(
+            'Transaction Verification',
+            style: AppTextStyles.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please verify to authorize this transaction',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // Biometric icons with animation
+          SizedBox(
+            height: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildBiometricIcon(
+                  Icons.face,
+                  isActive: _stage == 0,
+                  isDone: _stage > 0,
+                ),
+                Container(
+                  width: 40,
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  color: AppColors.glassBorder,
+                ),
+                _buildBiometricIcon(
+                  Icons.fingerprint,
+                  isActive: _stage == 1,
+                  isDone: _stage > 1,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Status text
+          Text(
+            _statusText,
+            style: AppTextStyles.bodyLarge.copyWith(
+              color: _stage == 2 ? AppColors.positive : AppColors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // Cancel button (only show while verifying)
+          if (_isVerifying)
+            TextButton(
+              onPressed: widget.onCancel,
+              child: Text(
+                'Cancel',
+                style: AppTextStyles.buttonMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBiometricIcon(IconData icon, {required bool isActive, required bool isDone}) {
+    Color color = isDone
+        ? AppColors.positive
+        : (isActive ? AppColors.accent : AppColors.textLight.withOpacity(0.3));
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: isActive ? 80 : 60,
+      height: isActive ? 80 : 60,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 2),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                )
+              ]
+            : [],
+      ),
+      child: Icon(
+        isDone ? Icons.check : icon,
+        color: color,
+        size: isActive ? 40 : 30,
       ),
     );
   }
