@@ -6,6 +6,7 @@ import 'analytics_screen.dart';
 import 'ai_chat_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
+import 'transfer_screen.dart';
 
 // Currency data model
 class CurrencyInfo {
@@ -23,7 +24,6 @@ class CurrencyInfo {
     required this.exchangeRate,
   });
 }
-import "transfer_screen.dart";
 
 /// Home / Balance Overview screen
 class HomeScreen extends StatefulWidget {
