@@ -4,18 +4,22 @@ import '../widgets/widgets.dart';
 
 class TransferReceiptScreen extends StatelessWidget {
   final String amount;
-  final String currencySymbol; // <--- This was missing in your file
+  final String currencySymbol;
   final String recipientName;
   final String recipientAccount;
+  final String? description;
   final bool isReceiving;
+  final VoidCallback? onDone;
 
   const TransferReceiptScreen({
     super.key,
     required this.amount,
-    required this.currencySymbol, // <--- Required in constructor
+    required this.currencySymbol,
     required this.recipientName,
     required this.recipientAccount,
+    this.description,
     this.isReceiving = false,
+    this.onDone,
   });
 
   @override
@@ -101,6 +105,10 @@ class TransferReceiptScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildRow('Account', recipientAccount),
                         const SizedBox(height: 16),
+                        if (description != null && description!.isNotEmpty) ...[
+                          _buildRow('Description', description!),
+                          const SizedBox(height: 16),
+                        ],
                         _buildRow('Date', '$dateStr • $timeStr'),
                         const SizedBox(height: 16),
                         _buildRow('Ref ID', refId),
@@ -126,8 +134,13 @@ class TransferReceiptScreen extends StatelessWidget {
                                     : AppColors.accent,
                                 textColor: Colors.white,
                                 onPressed: () {
-                                  Navigator.of(context)
-                                      .popUntil((route) => route.isFirst);
+                                  // If onDone callback provided, use it to navigate back to home
+                                  if (onDone != null) {
+                                    Navigator.of(context).popUntil((route) => route.isFirst);
+                                    onDone!();
+                                  } else {
+                                    Navigator.of(context).popUntil((route) => route.isFirst);
+                                  }
                                 },
                               ),
                             ),

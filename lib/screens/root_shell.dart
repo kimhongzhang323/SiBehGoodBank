@@ -7,6 +7,7 @@ import 'home_screen.dart';
 import 'ai_chat_screen.dart';
 import 'analytics_screen.dart';
 import 'scan_qr_screen.dart';
+import 'transfer_screen.dart';
 
 /// Root shell that manages the customizable bottom navigation bar.
 /// 
@@ -108,7 +109,7 @@ class _RootShellState extends State<RootShell> {
       case QuickActionType.scanQr:
         return ScanQrScreen(onBackToHome: onBackToHome);
       case QuickActionType.transfer:
-        return _PlaceholderScreen(title: 'Transfer', icon: Icons.swap_horiz, onBackToHome: onBackToHome);
+        return TransferScreen(currencySymbol: 'RM', onBackToHome: onBackToHome);
       case QuickActionType.contacts:
         return _PlaceholderScreen(title: 'Contacts', icon: Icons.contacts, onBackToHome: onBackToHome);
       case QuickActionType.accounts:
