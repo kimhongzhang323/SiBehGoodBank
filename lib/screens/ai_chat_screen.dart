@@ -303,14 +303,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
       await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Step 2: Show tool selection options
+      // Step 2: Show transfer form directly with recent accounts
       setState(() {
         _messages.removeLast(); // Remove processing message
         _messages.add({
           'speaker': 'Agent',
-          'message': '✓ Analysis complete. Please select transfer method:',
+          'message': '✓ Who would you like to transfer to?',
           'alignment': Alignment.centerLeft,
-          'showToolSelection': true,
+          'showTransferForm': true,
+          'selectedTool': 'Transfer',
         });
       });
       _scrollToBottom();
@@ -332,14 +333,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
       await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Step 2: Show bank selection options
+      // Step 2: Show account selection options
       setState(() {
         _messages.removeLast(); // Remove processing message
         _messages.add({
           'speaker': 'Agent',
-          'message': '✓ Please select your bank:',
+          'message': '✓ Please select the account to withdraw from:',
           'alignment': Alignment.centerLeft,
-          'showWithdrawalBankSelection': true,
+          'showWithdrawalAccountSelection': true,
         });
       });
       _scrollToBottom();
@@ -474,6 +475,118 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
+  void _handleWithdrawalAccountSelection(Map<String, String> account) async {
+    // Show amount selection after account is chosen
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '💰 You selected ${account['name']}. How much would you like to withdraw?',
+        'alignment': Alignment.centerLeft,
+        'showWithdrawalAmountSelection': true,
+        'selectedAccount': account,
+      });
+    });
+    _scrollToBottom();
+  }
+
+  void _handleWithdrawalAmountSelection(String amount, Map<String, String> account) async {
+    // Show branch selection after amount is chosen
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '📍 Please select a branch for ATM pickup:',
+        'alignment': Alignment.centerLeft,
+        'showBranchSelection': true,
+        'selectedAccount': account,
+        'selectedAmount': amount,
+      });
+    });
+    _scrollToBottom();
+  }
+
+  void _handleBranchSelection(Map<String, dynamic> branchData, String amount, Map<String, String> account) async {
+    // Show biometric verification sheet
+    _showBiometricVerification(
+      onSuccess: () async {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '✓ Verification successful! Generating withdrawal QR code...',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        // Generate withdrawal QR code
+        final now = DateTime.now();
+        final originalBalance = double.tryParse(account['balance']?.replaceAll(',', '') ?? '5000') ?? 5000.0;
+        final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+        final newBalance = originalBalance - withdrawalAmount;
+        final transactionId = 'WD${now.millisecondsSinceEpoch.toString().substring(7)}';
+        final qrCode = 'SGB-${transactionId}-${branchData['atmId']}';
+
+        final withdrawalData = {
+          'account': account['name'],
+          'accountNumber': account['number'],
+          'branch': branchData['name'],
+          'branchAddress': branchData['address'],
+          'atmId': branchData['atmId'],
+          'amount': withdrawalAmount,
+          'originalBalance': originalBalance,
+          'newBalance': newBalance,
+          'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
+          'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+          'transactionId': transactionId,
+          'qrCode': qrCode,
+          'googleMapsUrl': 'https://www.google.com/maps/search/?api=1&query=${branchData['lat']},${branchData['lng']}',
+          'status': 'pending', // pending, collected
+        };
+
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '📱 Scan this QR code at the ATM to collect your cash',
+            'alignment': Alignment.centerLeft,
+            'showWithdrawalQR': true,
+            'withdrawalData': withdrawalData,
+          });
+        });
+        _scrollToBottom();
+      },
+      onCancel: () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '❌ Verification cancelled. Withdrawal was not processed.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      },
+    );
+  }
+
+  void _handleWithdrawalCollected(Map<String, dynamic> withdrawalData) {
+    final now = DateTime.now();
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '✅ Cash collected successfully!',
+        'alignment': Alignment.centerLeft,
+        'showWithdrawalReceipt': true,
+        'withdrawalData': {
+          ...withdrawalData,
+          'status': 'collected',
+          'collectionTime': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        },
+      });
+    });
+    _scrollToBottom();
+  }
+
+  // Legacy handler - keeping for compatibility
   void _handleWithdrawalBankSelection(String bank) async {
     if (bank == 'Other...') {
       // Show custom bank card form
@@ -777,6 +890,69 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
+                      } else if (msg['showWithdrawalAccountSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalAccountGrid(onAccountSelected: _handleWithdrawalAccountSelection),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showWithdrawalAmountSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalAmountSelector(
+                              account: msg['selectedAccount'],
+                              onAmountSelected: (amount) => _handleWithdrawalAmountSelection(amount, msg['selectedAccount']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBranchSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BranchSelector(
+                              onBranchSelected: (branch) => _handleBranchSelection(
+                                branch, 
+                                msg['selectedAmount'], 
+                                msg['selectedAccount'],
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
                       } else if (msg['showCustomBankForm'] == true) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,6 +988,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             _WithdrawalAmountInput(
                               bank: msg['selectedBank'],
                               onSubmit: (amount) => _handleWithdrawalAmount(amount, msg['selectedBank']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showWithdrawalQR'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalQRCard(
+                              withdrawalData: msg['withdrawalData'],
+                              onCollected: () => _handleWithdrawalCollected(msg['withdrawalData']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -864,6 +1061,24 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 child: Image.asset(
                                   'assets/images/invoice.webp',
                                   fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      height: 150,
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.cardBackground,
+                                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                      ),
+                                      child: const Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.receipt_long, size: 48, color: AppColors.textSecondary),
+                                          SizedBox(height: 8),
+                                          Text('Invoice Image', style: TextStyle(color: AppColors.textSecondary)),
+                                        ],
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
@@ -1111,31 +1326,136 @@ class _TransferForm extends StatefulWidget {
 class _TransferFormState extends State<_TransferForm> {
   final _amountController = TextEditingController();
   final _recipientController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _accountNumberController = TextEditingController();
   final _reasonController = TextEditingController();
+  final _searchController = TextEditingController();
+  
+  String _selectedTransferType = 'DuitNow';
+  String? _selectedPresetAmount;
+  Map<String, String>? _selectedRecipient;
+  bool _showNewRecipientForm = false;
+  String? _selectedBank;
+  String _searchQuery = '';
+  
+  static const List<String> _quickAmounts = ['50', '100', '200', '500', '1000', '2000'];
+  
+  // Recent transfer accounts (mock data - in real app, this would come from backend)
+  static const List<Map<String, String>> _recentRecipients = [
+    {
+      'name': 'Ahmad bin Abdullah',
+      'bank': 'Maybank',
+      'accountNumber': '1234-5678-9012',
+      'avatar': 'A',
+    },
+    {
+      'name': 'Sarah Lee',
+      'bank': 'CIMB Bank',
+      'accountNumber': '9876-5432-1098',
+      'avatar': 'S',
+    },
+    {
+      'name': 'Muhammad Rizal',
+      'bank': 'Public Bank',
+      'accountNumber': '5555-4444-3333',
+      'avatar': 'M',
+    },
+    {
+      'name': 'Priya Krishnan',
+      'bank': 'Hong Leong Bank',
+      'accountNumber': '1111-2222-3333',
+      'avatar': 'P',
+    },
+    {
+      'name': 'Tan Wei Ming',
+      'bank': 'RHB Bank',
+      'accountNumber': '7777-8888-9999',
+      'avatar': 'T',
+    },
+    {
+      'name': 'Fatimah Zahra',
+      'bank': 'Bank Islam',
+      'accountNumber': '4444-5555-6666',
+      'avatar': 'F',
+    },
+  ];
+
+  // All Malaysian banks list
+  static const List<String> _allBanks = [
+    'Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank', 'AmBank',
+    'Bank Islam', 'Bank Muamalat', 'Bank Rakyat', 'BSN', 'Affin Bank', 'Alliance Bank',
+    'MBSB Bank', 'Agrobank', 'HSBC', 'Standard Chartered', 'OCBC Bank', 'UOB', 'Citibank',
+    'Maybank Islamic', 'CIMB Islamic', 'Public Islamic Bank', 'RHB Islamic',
+    'Hong Leong Islamic', 'AmBank Islamic', 'GXBank', 'Boost Bank', 'AEON Bank', 'GoBank',
+  ];
+
+  List<Map<String, String>> get _filteredRecipients {
+    if (_searchQuery.isEmpty) return _recentRecipients;
+    final query = _searchQuery.toLowerCase();
+    return _recentRecipients.where((r) =>
+        r['name']!.toLowerCase().contains(query) ||
+        r['bank']!.toLowerCase().contains(query) ||
+        r['accountNumber']!.contains(query)
+    ).toList();
+  }
 
   @override
   void dispose() {
     _amountController.dispose();
     _recipientController.dispose();
-    _phoneController.dispose();
+    _accountNumberController.dispose();
     _reasonController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _submit() {
-    if (_amountController.text.isEmpty || 
-        _recipientController.text.isEmpty ||
-        _phoneController.text.isEmpty) {
-      return;
-    }
-
-    widget.onSubmit({
-      'amount': _amountController.text,
-      'recipient': _recipientController.text,
-      'phone': _phoneController.text,
-      'reason': _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
+  void _selectRecipient(Map<String, String> recipient) {
+    setState(() {
+      _selectedRecipient = recipient;
+      _showNewRecipientForm = false;
+      _recipientController.text = recipient['name']!;
+      _accountNumberController.text = recipient['accountNumber']!;
+      _selectedBank = recipient['bank'];
     });
+  }
+
+  void _showOtherRecipientForm() {
+    setState(() {
+      _selectedRecipient = null;
+      _showNewRecipientForm = true;
+      _recipientController.clear();
+      _accountNumberController.clear();
+      _selectedBank = null;
+    });
+  }
+
+  void _submit() {
+    String amount = _selectedPresetAmount ?? _amountController.text;
+    if (amount.isEmpty) return;
+    
+    if (_selectedRecipient != null) {
+      widget.onSubmit({
+        'amount': amount,
+        'recipient': _selectedRecipient!['name']!,
+        'accountNumber': _selectedRecipient!['accountNumber']!,
+        'bank': _selectedRecipient!['bank']!,
+        'transferType': _selectedTransferType,
+        'reason': _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
+      });
+    } else if (_showNewRecipientForm) {
+      if (_recipientController.text.isEmpty ||
+          _accountNumberController.text.isEmpty ||
+          _selectedBank == null) {
+        return;
+      }
+      widget.onSubmit({
+        'amount': amount,
+        'recipient': _recipientController.text,
+        'accountNumber': _accountNumberController.text,
+        'bank': _selectedBank!,
+        'transferType': _selectedTransferType,
+        'reason': _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
+      });
+    }
   }
 
   @override
@@ -1150,30 +1470,518 @@ class _TransferFormState extends State<_TransferForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTextField('Amount (RM)', _amountController, TextInputType.number),
+          // Step 1: Select Recipient
+          if (_selectedRecipient == null && !_showNewRecipientForm) ...[
+            _buildRecipientSelection(),
+          ] else ...[
+            // Show selected recipient or new recipient form
+            _buildSelectedRecipientOrForm(),
+            const SizedBox(height: AppSpacing.lg),
+            
+            // Step 2: Transfer Type
+            _buildTransferTypeSection(),
+            const SizedBox(height: AppSpacing.lg),
+            
+            // Step 3: Amount Selection
+            _buildAmountSection(),
+            const SizedBox(height: AppSpacing.md),
+            
+            // Step 4: Description
+            _buildTextField('Description (Optional)', _reasonController, TextInputType.text),
+            const SizedBox(height: AppSpacing.lg),
+            
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  ),
+                ),
+                child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecipientSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Transfer Accounts',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        
+        // Search field
+        TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _searchQuery = value),
+          decoration: InputDecoration(
+            hintText: 'Search by name, bank, or account...',
+            prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
+                      });
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        
+        // Recent recipients list
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 280),
+          child: _filteredRecipients.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.search_off, size: 40, color: AppColors.textSecondary.withOpacity(0.5)),
+                        const SizedBox(height: AppSpacing.sm),
+                        const Text(
+                          'No matching accounts found',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _filteredRecipients.length,
+                  itemBuilder: (context, index) {
+                    final recipient = _filteredRecipients[index];
+                    return _buildRecipientTile(recipient);
+                  },
+                ),
+        ),
+        
+        const SizedBox(height: AppSpacing.md),
+        const Divider(),
+        const SizedBox(height: AppSpacing.sm),
+        
+        // Other / New Recipient button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _showOtherRecipientForm,
+            icon: const Icon(Icons.person_add, size: 20),
+            label: const Text('Transfer to New Recipient', style: TextStyle(fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecipientTile(Map<String, String> recipient) {
+    return InkWell(
+      onTap: () => _selectRecipient(recipient),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.accent, AppColors.accentBlue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Center(
+                child: Text(
+                  recipient['avatar']!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    recipient['name']!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${recipient['bank']} • ${recipient['accountNumber']}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: AppColors.textSecondary.withOpacity(0.5),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedRecipientOrForm() {
+    if (_selectedRecipient != null) {
+      // Show selected recipient
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.accent, AppColors.accentBlue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Center(
+                child: Text(
+                  _selectedRecipient!['avatar']!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _selectedRecipient!['name']!,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${_selectedRecipient!['bank']} • ${_selectedRecipient!['accountNumber']}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => setState(() => _selectedRecipient = null),
+              icon: const Icon(Icons.edit, size: 20),
+              color: AppColors.accent,
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Show new recipient form
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'New Recipient',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => setState(() => _showNewRecipientForm = false),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Bank Selection Dropdown
+          const Text(
+            'Select Bank',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedBank,
+                hint: const Text('Choose bank'),
+                isExpanded: true,
+                icon: const Icon(Icons.keyboard_arrow_down),
+                items: _allBanks.map((bank) => DropdownMenuItem(
+                  value: bank,
+                  child: Text(bank),
+                )).toList(),
+                onChanged: (value) => setState(() => _selectedBank = value),
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           _buildTextField('Recipient Name', _recipientController, TextInputType.name),
           const SizedBox(height: AppSpacing.md),
-          _buildTextField('Phone Number', _phoneController, TextInputType.phone),
-          const SizedBox(height: AppSpacing.md),
-          _buildTextField('Reason (Optional)', _reasonController, TextInputType.text),
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          _buildTextField('Account Number', _accountNumberController, TextInputType.number),
+        ],
+      );
+    }
+  }
+
+  Widget _buildTransferTypeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Transfer Type',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            Expanded(
+              child: _buildTransferTypeButton('DuitNow', Icons.flash_on),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _buildTransferTypeButton('IBG', Icons.account_balance),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Amount',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: _quickAmounts.map((amount) => GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedPresetAmount = amount;
+                _amountController.clear();
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: _selectedPresetAmount == amount 
+                    ? AppColors.accent 
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                border: Border.all(
+                  color: _selectedPresetAmount == amount 
+                      ? AppColors.accent 
+                      : Colors.grey.shade300,
                 ),
               ),
-              child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text(
+                'RM $amount',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _selectedPresetAmount == amount 
+                      ? Colors.white 
+                      : AppColors.textPrimary,
+                ),
+              ),
+            ),
+          )).toList(),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _buildAmountField(),
+      ],
+    );
+  }
+  
+  Widget _buildAmountField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Or enter custom amount',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.number,
+          onChanged: (_) {
+            if (_amountController.text.isNotEmpty) {
+              setState(() => _selectedPresetAmount = null);
+            }
+          },
+          decoration: InputDecoration(
+            prefixText: 'RM ',
+            hintText: 'Enter amount',
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              borderSide: const BorderSide(color: AppColors.accent, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransferTypeButton(String type, IconData icon) {
+    final isSelected = _selectedTransferType == type;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedTransferType = type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accent.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(
+            color: isSelected ? AppColors.accent : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppColors.accent : AppColors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              type,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? AppColors.accent : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1260,10 +2068,11 @@ class _TransferSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           _buildRow('Transfer Method', tool),
+          _buildRow('Transfer Type', formData['transferType'] ?? 'DuitNow'),
           _buildRow('Amount', 'RM ${formData['amount']}'),
           _buildRow('Recipient', formData['recipient'] ?? ''),
-          _buildRow('Phone Number', formData['phone'] ?? ''),
-          _buildRow('Reason', formData['reason'] ?? ''),
+          _buildRow('Account Number', formData['accountNumber'] ?? ''),
+          _buildRow('Description', formData['reason'] ?? ''),
           const SizedBox(height: AppSpacing.lg),
           SizedBox(
             width: double.infinity,
@@ -1386,9 +2195,14 @@ class _TransferReceipt extends StatelessWidget {
                 _buildRow('Amount', 'RM ${formData['amount']}', isHighlight: true),
                 const Divider(height: AppSpacing.lg),
                 _buildRow('Method', tool),
+                if (formData['transferType'] != null && formData['transferType']!.isNotEmpty)
+                  _buildRow('Transfer Type', formData['transferType']!),
                 _buildRow('Recipient', formData['recipient'] ?? ''),
+                if (formData['accountNumber'] != null && formData['accountNumber']!.isNotEmpty)
+                  _buildRow('Account No.', formData['accountNumber']!),
                 _buildRow('Phone', formData['phone'] ?? ''),
-                _buildRow('Reason', formData['reason'] ?? ''),
+                if (formData['description'] != null && formData['description']!.isNotEmpty)
+                  _buildRow('Description', formData['description']!),
                 _buildRow('Date', '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}'),
               ],
             ),
@@ -2238,11 +3052,98 @@ class _VoiceWaveAnimation extends StatelessWidget {
   }
 }
 
-// Withdrawal Bank Selection Grid
-class _WithdrawalBankGrid extends StatelessWidget {
+// Withdrawal Bank Selection Grid with Search
+class _WithdrawalBankGrid extends StatefulWidget {
   const _WithdrawalBankGrid({required this.onBankSelected});
 
   final Function(String) onBankSelected;
+
+  @override
+  State<_WithdrawalBankGrid> createState() => _WithdrawalBankGridState();
+}
+
+class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  
+  // Complete list of banks in Malaysia
+  static const List<Map<String, String>> _allBanks = [
+    // Local Commercial Banks
+    {'name': 'Maybank', 'fullName': 'Malayan Banking Berhad', 'type': 'local'},
+    {'name': 'CIMB Bank', 'fullName': 'CIMB Bank Berhad', 'type': 'local'},
+    {'name': 'Public Bank', 'fullName': 'Public Bank Berhad', 'type': 'local'},
+    {'name': 'RHB Bank', 'fullName': 'RHB Bank Berhad', 'type': 'local'},
+    {'name': 'Hong Leong Bank', 'fullName': 'Hong Leong Bank Berhad', 'type': 'local'},
+    {'name': 'AmBank', 'fullName': 'AmBank (M) Berhad', 'type': 'local'},
+    {'name': 'Bank Islam', 'fullName': 'Bank Islam Malaysia Berhad', 'type': 'islamic'},
+    {'name': 'Bank Muamalat', 'fullName': 'Bank Muamalat Malaysia Berhad', 'type': 'islamic'},
+    {'name': 'Bank Rakyat', 'fullName': 'Bank Kerjasama Rakyat Malaysia Berhad', 'type': 'local'},
+    {'name': 'BSN', 'fullName': 'Bank Simpanan Nasional', 'type': 'local'},
+    {'name': 'Affin Bank', 'fullName': 'Affin Bank Berhad', 'type': 'local'},
+    {'name': 'Alliance Bank', 'fullName': 'Alliance Bank Malaysia Berhad', 'type': 'local'},
+    {'name': 'MBSB Bank', 'fullName': 'Malaysia Building Society Berhad', 'type': 'islamic'},
+    {'name': 'Agrobank', 'fullName': 'Agrobank (Bank Pertanian Malaysia)', 'type': 'local'},
+    {'name': 'Bank Pertanian', 'fullName': 'Bank Pertanian Malaysia Berhad', 'type': 'local'},
+    
+    // Foreign Banks
+    {'name': 'HSBC', 'fullName': 'HSBC Bank Malaysia Berhad', 'type': 'foreign'},
+    {'name': 'Standard Chartered', 'fullName': 'Standard Chartered Bank Malaysia', 'type': 'foreign'},
+    {'name': 'OCBC Bank', 'fullName': 'OCBC Bank (Malaysia) Berhad', 'type': 'foreign'},
+    {'name': 'UOB', 'fullName': 'United Overseas Bank (Malaysia)', 'type': 'foreign'},
+    {'name': 'Citibank', 'fullName': 'Citibank Berhad', 'type': 'foreign'},
+    {'name': 'Deutsche Bank', 'fullName': 'Deutsche Bank (Malaysia) Berhad', 'type': 'foreign'},
+    {'name': 'Bank of China', 'fullName': 'Bank of China (Malaysia) Berhad', 'type': 'foreign'},
+    {'name': 'ICBC', 'fullName': 'Industrial and Commercial Bank of China', 'type': 'foreign'},
+    {'name': 'Bank of America', 'fullName': 'Bank of America Malaysia Berhad', 'type': 'foreign'},
+    {'name': 'JP Morgan', 'fullName': 'J.P. Morgan Chase Bank Berhad', 'type': 'foreign'},
+    {'name': 'BNP Paribas', 'fullName': 'BNP Paribas Malaysia Berhad', 'type': 'foreign'},
+    {'name': 'Mizuho Bank', 'fullName': 'Mizuho Bank (Malaysia) Berhad', 'type': 'foreign'},
+    {'name': 'Sumitomo Mitsui', 'fullName': 'Sumitomo Mitsui Banking Corporation', 'type': 'foreign'},
+    {'name': 'India International Bank', 'fullName': 'India International Bank (Malaysia)', 'type': 'foreign'},
+    {'name': 'Bangkok Bank', 'fullName': 'Bangkok Bank Berhad', 'type': 'foreign'},
+    
+    // Islamic Banks
+    {'name': 'Maybank Islamic', 'fullName': 'Maybank Islamic Berhad', 'type': 'islamic'},
+    {'name': 'CIMB Islamic', 'fullName': 'CIMB Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'Public Islamic Bank', 'fullName': 'Public Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'RHB Islamic', 'fullName': 'RHB Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'Hong Leong Islamic', 'fullName': 'Hong Leong Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'AmBank Islamic', 'fullName': 'AmBank Islamic Berhad', 'type': 'islamic'},
+    {'name': 'Affin Islamic', 'fullName': 'Affin Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'Alliance Islamic', 'fullName': 'Alliance Islamic Bank Berhad', 'type': 'islamic'},
+    {'name': 'HSBC Amanah', 'fullName': 'HSBC Amanah Malaysia Berhad', 'type': 'islamic'},
+    {'name': 'OCBC Al-Amin', 'fullName': 'OCBC Al-Amin Bank Berhad', 'type': 'islamic'},
+    {'name': 'Standard Chartered Saadiq', 'fullName': 'Standard Chartered Saadiq Berhad', 'type': 'islamic'},
+    {'name': 'Kuwait Finance House', 'fullName': 'Kuwait Finance House (Malaysia)', 'type': 'islamic'},
+    {'name': 'Al Rajhi Bank', 'fullName': 'Al Rajhi Banking & Investment Corporation', 'type': 'islamic'},
+    
+    // Digital Banks
+    {'name': 'GXBank', 'fullName': 'GX Bank Berhad', 'type': 'digital'},
+    {'name': 'Boost Bank', 'fullName': 'Boost Bank Berhad', 'type': 'digital'},
+    {'name': 'AEON Bank', 'fullName': 'AEON Bank (M) Berhad', 'type': 'digital'},
+    {'name': 'GoBank', 'fullName': 'GoBank Berhad', 'type': 'digital'},
+    {'name': 'KAF Digital Bank', 'fullName': 'KAF Digital Bank Berhad', 'type': 'digital'},
+  ];
+  
+  // Popular banks to show at top
+  static const List<String> _popularBanks = [
+    'Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank', 'AmBank'
+  ];
+
+  List<Map<String, String>> get _filteredBanks {
+    if (_searchQuery.isEmpty) return _allBanks;
+    final query = _searchQuery.toLowerCase();
+    return _allBanks.where((bank) =>
+        bank['name']!.toLowerCase().contains(query) ||
+        bank['fullName']!.toLowerCase().contains(query)
+    ).toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2254,65 +3155,949 @@ class _WithdrawalBankGrid extends StatelessWidget {
         border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(child: _buildBankButton(context, 'Maybank', 'assets/images/may.png')),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: _buildBankButton(context, 'CIMB', 'assets/images/cimb.png')),
-            ],
+          // Search field
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: 'Search bank name...',
+              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(child: _buildBankButton(context, 'Public Bank', 'assets/images/public.png')),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: _buildBankButton(context, 'Hong Leong', 'assets/images/hl1.png')),
-            ],
+          const SizedBox(height: AppSpacing.md),
+          
+          // Popular banks (only show when not searching)
+          if (_searchQuery.isEmpty) ...[
+            const Text(
+              'Popular Banks',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: _popularBanks.map((bankName) => 
+                _buildQuickBankChip(bankName)
+              ).toList(),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(),
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'All Banks',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          
+          // Bank list
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 300),
+            child: _filteredBanks.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: Text(
+                        'No banks found',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _filteredBanks.length,
+                    itemBuilder: (context, index) {
+                      final bank = _filteredBanks[index];
+                      return _buildBankListItem(bank);
+                    },
+                  ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildQuickBankChip(String bankName) {
+    return GestureDetector(
+      onTap: () => widget.onBankSelected(bankName),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.account_balance, size: 14, color: AppColors.accent),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              bankName,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBankListItem(Map<String, String> bank) {
+    IconData typeIcon;
+    Color typeColor;
+    
+    switch (bank['type']) {
+      case 'islamic':
+        typeIcon = Icons.mosque;
+        typeColor = AppColors.positive;
+        break;
+      case 'foreign':
+        typeIcon = Icons.public;
+        typeColor = AppColors.accentBlue;
+        break;
+      case 'digital':
+        typeIcon = Icons.phone_android;
+        typeColor = AppColors.accent;
+        break;
+      default:
+        typeIcon = Icons.account_balance;
+        typeColor = AppColors.textSecondary;
+    }
+    
+    return InkWell(
+      onTap: () => widget.onBankSelected(bank['name']!),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: typeColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(typeIcon, color: typeColor, size: 20),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bank['name']!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    bank['fullName']!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: AppColors.textSecondary.withOpacity(0.5),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Withdrawal Account Selection Grid
+class _WithdrawalAccountGrid extends StatelessWidget {
+  const _WithdrawalAccountGrid({required this.onAccountSelected});
+
+  final Function(Map<String, String>) onAccountSelected;
+
+  static const List<Map<String, String>> _accounts = [
+    {
+      'name': 'Savings Account',
+      'number': '****-****-1234',
+      'balance': '15,680.50',
+      'type': 'savings',
+    },
+    {
+      'name': 'Current Account',
+      'number': '****-****-5678',
+      'balance': '8,420.00',
+      'type': 'current',
+    },
+    {
+      'name': 'Fixed Deposit',
+      'number': '****-****-9012',
+      'balance': '50,000.00',
+      'type': 'fixed',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: _accounts.map((account) => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: _buildAccountCard(account),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildAccountCard(Map<String, String> account) {
+    IconData icon;
+    Color color;
+    switch (account['type']) {
+      case 'savings':
+        icon = Icons.savings;
+        color = AppColors.positive;
+        break;
+      case 'current':
+        icon = Icons.account_balance_wallet;
+        color = AppColors.accentBlue;
+        break;
+      case 'fixed':
+        icon = Icons.lock;
+        color = AppColors.accent;
+        break;
+      default:
+        icon = Icons.account_balance;
+        color = AppColors.textSecondary;
+    }
+
+    return ElevatedButton(
+      onPressed: () => onAccountSelected(account),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          side: BorderSide(color: color.withOpacity(0.3)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account['name']!,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  account['number']!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(child: _buildBankButton(context, 'RHB', 'assets/images/RHB.png')),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: _buildBankButton(context, 'Other...', null)),
+              Text(
+                'RM ${account['balance']}',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              const Text(
+                'Available',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBankButton(BuildContext context, String bank, String? logoPath) {
-    return ElevatedButton(
-      onPressed: () => onBankSelected(bank),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          side: BorderSide(color: AppColors.accent.withOpacity(0.2)),
-        ),
+// Withdrawal Amount Selector with preset amounts
+class _WithdrawalAmountSelector extends StatefulWidget {
+  const _WithdrawalAmountSelector({
+    required this.account,
+    required this.onAmountSelected,
+  });
+
+  final Map<String, String> account;
+  final Function(String) onAmountSelected;
+
+  @override
+  State<_WithdrawalAmountSelector> createState() => _WithdrawalAmountSelectorState();
+}
+
+class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
+  final _customAmountController = TextEditingController();
+  String? _selectedPreset;
+
+  static const List<String> _presetAmounts = ['50', '100', '200', '500', '1000'];
+
+  @override
+  void dispose() {
+    _customAmountController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    String amount;
+    if (_selectedPreset != null) {
+      amount = _selectedPreset!;
+    } else if (_customAmountController.text.trim().isNotEmpty) {
+      amount = _customAmountController.text.trim();
+    } else {
+      return;
+    }
+    widget.onAmountSelected(amount);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (logoPath != null)
-            Image.asset(
-              logoPath,
-              height: 40,
-              fit: BoxFit.contain,
-            )
-          else
-            Icon(Icons.more_horiz, size: 24, color: AppColors.accent),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            bank,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.center,
+          // Account info
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.account_balance_wallet, color: AppColors.accent, size: 20),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '${widget.account['name']} • RM ${widget.account['balance']} available',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Quick amounts
+          const Text(
+            'Quick Amount',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: _presetAmounts.map((amount) => GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedPreset = amount;
+                  _customAmountController.clear();
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: _selectedPreset == amount 
+                      ? AppColors.accent 
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  border: Border.all(
+                    color: _selectedPreset == amount 
+                        ? AppColors.accent 
+                        : Colors.grey.shade300,
+                  ),
+                ),
+                child: Text(
+                  'RM $amount',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _selectedPreset == amount 
+                        ? Colors.white 
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            )).toList(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Custom amount
+          const Text(
+            'Or enter custom amount',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _customAmountController,
+            keyboardType: TextInputType.number,
+            onChanged: (_) {
+              if (_customAmountController.text.isNotEmpty) {
+                setState(() => _selectedPreset = null);
+              }
+            },
+            decoration: InputDecoration(
+              prefixText: 'RM ',
+              hintText: 'Enter amount',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Continue button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Branch Selector for ATM pickup
+class _BranchSelector extends StatefulWidget {
+  const _BranchSelector({required this.onBranchSelected});
+
+  final Function(Map<String, dynamic>) onBranchSelected;
+
+  @override
+  State<_BranchSelector> createState() => _BranchSelectorState();
+}
+
+class _BranchSelectorState extends State<_BranchSelector> {
+  String? _selectedBranch;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isLocating = true;
+  int _autoSelectedIndex = 0;
+
+  static const List<Map<String, dynamic>> _branches = [
+    {
+      'name': 'KLCC Branch',
+      'address': 'Suria KLCC, Kuala Lumpur',
+      'distance': '0.5 km',
+      'distanceValue': 0.5,
+      'atmCount': 4,
+      'atmId': 'ATM-KLCC-001',
+      'lat': 3.1578,
+      'lng': 101.7123,
+    },
+    {
+      'name': 'Pavilion Branch',
+      'address': 'Pavilion KL, Bukit Bintang',
+      'distance': '1.2 km',
+      'distanceValue': 1.2,
+      'atmCount': 3,
+      'atmId': 'ATM-PAV-001',
+      'lat': 3.1488,
+      'lng': 101.7134,
+    },
+    {
+      'name': 'Mid Valley Branch',
+      'address': 'Mid Valley Megamall',
+      'distance': '3.5 km',
+      'distanceValue': 3.5,
+      'atmCount': 6,
+      'atmId': 'ATM-MV-001',
+      'lat': 3.1177,
+      'lng': 101.6773,
+    },
+    {
+      'name': 'Bangsar Branch',
+      'address': 'Bangsar Village II',
+      'distance': '4.8 km',
+      'distanceValue': 4.8,
+      'atmCount': 2,
+      'atmId': 'ATM-BGR-001',
+      'lat': 3.1298,
+      'lng': 101.6708,
+    },
+    {
+      'name': 'Sunway Pyramid Branch',
+      'address': 'Sunway Pyramid, Subang',
+      'distance': '8.2 km',
+      'distanceValue': 8.2,
+      'atmCount': 5,
+      'atmId': 'ATM-SPY-001',
+      'lat': 3.0733,
+      'lng': 101.6078,
+    },
+    {
+      'name': 'IOI City Mall Branch',
+      'address': 'IOI City Mall, Putrajaya',
+      'distance': '12.5 km',
+      'distanceValue': 12.5,
+      'atmCount': 4,
+      'atmId': 'ATM-IOI-001',
+      'lat': 2.9714,
+      'lng': 101.7159,
+    },
+  ];
+
+  List<Map<String, dynamic>> get _filteredBranches {
+    if (_searchQuery.isEmpty) return _branches;
+    return _branches.where((b) =>
+        b['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        b['address'].toString().toLowerCase().contains(_searchQuery.toLowerCase())
+    ).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate auto-locating nearest branch
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _isLocating = false;
+          _selectedBranch = _branches[_autoSelectedIndex]['name'];
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _getGoogleMapsUrl(Map<String, dynamic> branch) {
+    return 'https://www.google.com/maps/search/?api=1&query=${branch['lat']},${branch['lng']}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Auto-locate banner
+          if (_isLocating)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(AppColors.accent),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  const Expanded(
+                    child: Text(
+                      'Finding nearest branch to your location...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.positive.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.my_location, color: AppColors.positive, size: 18),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Nearest branch: ${_branches[_autoSelectedIndex]['name']} (${_branches[_autoSelectedIndex]['distance']})',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.positive,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Search field
+          TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: 'Search branch or location...',
+              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Branch list
+          ..._filteredBranches.map((branch) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _buildBranchCard(branch),
+          )),
+          
+          if (_filteredBranches.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: const Center(
+                child: Text(
+                  'No branches found',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+          
+          const SizedBox(height: AppSpacing.sm),
+          
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _selectedBranch != null 
+                  ? () {
+                      final selected = _branches.firstWhere((b) => b['name'] == _selectedBranch);
+                      widget.onBranchSelected(selected);
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: const Text('Confirm Branch', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBranchCard(Map<String, dynamic> branch) {
+    final isSelected = _selectedBranch == branch['name'];
+    final isNearest = branch['name'] == _branches[_autoSelectedIndex]['name'];
+    
+    return GestureDetector(
+      onTap: () => setState(() => _selectedBranch = branch['name']),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accent.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          border: Border.all(
+            color: isSelected ? AppColors.accent : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: isSelected 
+                        ? AppColors.accent.withOpacity(0.2) 
+                        : AppColors.textSecondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Icon(
+                    Icons.location_on,
+                    color: isSelected ? AppColors.accent : AppColors.textSecondary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              branch['name'],
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (isNearest) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.positive,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'NEAREST',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        branch['address'],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.positive.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        branch['distance'],
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.positive,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${branch['atmCount']} ATMs',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isSelected) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  const Icon(Icons.check_circle, color: AppColors.accent, size: 22),
+                ],
+              ],
+            ),
+            // Google Maps link when selected
+            if (isSelected) ...[
+              const SizedBox(height: AppSpacing.sm),
+              GestureDetector(
+                onTap: () {
+                  // Open Google Maps - in real app would use url_launcher
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.map, size: 14, color: AppColors.accentBlue),
+                      const SizedBox(width: 4),
+                      Text(
+                        'View on Google Maps',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.accentBlue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.open_in_new, size: 12, color: AppColors.accentBlue),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -2401,17 +4186,15 @@ class _WithdrawalAmountInputState extends State<_WithdrawalAmountInput> {
   }
 }
 
-// Withdrawal Receipt
-class _WithdrawalReceipt extends StatelessWidget {
-  const _WithdrawalReceipt({
+// Withdrawal QR Card - displays QR code for ATM withdrawal
+class _WithdrawalQRCard extends StatelessWidget {
+  const _WithdrawalQRCard({
     required this.withdrawalData,
-    this.action,
-    required this.onAction,
+    required this.onCollected,
   });
 
   final Map<String, dynamic> withdrawalData;
-  final String? action;
-  final Function(String) onAction;
+  final VoidCallback onCollected;
 
   @override
   Widget build(BuildContext context) {
@@ -2430,9 +4213,295 @@ class _WithdrawalReceipt extends StatelessWidget {
         border: Border.all(color: AppColors.accent.withOpacity(0.3)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.qr_code_2, color: AppColors.accent, size: 28),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ATM Withdrawal Ready',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Scan at ${withdrawalData['branch']}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // QR Code Display
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Simulated QR Code
+                Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // QR pattern simulation
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 15,
+                          crossAxisSpacing: 1,
+                          mainAxisSpacing: 1,
+                        ),
+                        itemCount: 225,
+                        itemBuilder: (context, index) {
+                          // Create a deterministic pattern based on qrCode
+                          final hash = withdrawalData['qrCode'].hashCode;
+                          final isBlack = ((hash + index * 7) % 3) != 0;
+                          // Corner patterns
+                          final row = index ~/ 15;
+                          final col = index % 15;
+                          final isCorner = (row < 3 && col < 3) || 
+                                          (row < 3 && col > 11) ||
+                                          (row > 11 && col < 3);
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: isCorner || isBlack ? AppColors.textPrimary : Colors.white,
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          );
+                        },
+                      ),
+                      // Bank logo in center
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.account_balance, color: AppColors.accent, size: 24),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // QR Code value
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Text(
+                    withdrawalData['qrCode'],
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Transaction Details
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Column(
+              children: [
+                _buildDetailRow('Amount', 'RM ${withdrawalData['amount'].toStringAsFixed(2)}', isHighlight: true),
+                const Divider(height: AppSpacing.md),
+                _buildDetailRow('Account', withdrawalData['account']),
+                _buildDetailRow('Branch', withdrawalData['branch']),
+                _buildDetailRow('ATM ID', withdrawalData['atmId']),
+                _buildDetailRow('Expires', '15 minutes'),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Google Maps Link
+          GestureDetector(
+            onTap: () {
+              // In real app, use url_launcher to open Google Maps
+            },
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.accentBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                border: Border.all(color: AppColors.accentBlue.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.map, color: AppColors.accentBlue, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Open in Google Maps',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.accentBlue,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(Icons.open_in_new, color: AppColors.accentBlue, size: 16),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          
+          // Location info
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, color: AppColors.textSecondary, size: 16),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    withdrawalData['branchAddress'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Simulate collection button (for demo)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onCollected,
+              icon: const Icon(Icons.check_circle, size: 20),
+              label: const Text('Simulate: Cash Collected', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.positive,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isHighlight ? 15 : 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isHighlight ? 18 : 13,
+              fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+              color: isHighlight ? AppColors.positive : AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Withdrawal Receipt
+class _WithdrawalReceipt extends StatelessWidget {
+  const _WithdrawalReceipt({
+    required this.withdrawalData,
+    this.action,
+    required this.onAction,
+  });
+
+  final Map<String, dynamic> withdrawalData;
+  final String? action;
+  final Function(String) onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCollected = withdrawalData['status'] == 'collected';
+    
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accent.withOpacity(0.1),
+            AppColors.accentBlue.withOpacity(0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with collection status
           Row(
             children: [
               Container(
@@ -2448,17 +4517,17 @@ class _WithdrawalReceipt extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Cash Withdrawal',
-                      style: TextStyle(
+                    Text(
+                      isCollected ? 'Cash Collected' : 'Cash Withdrawal',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     Text(
-                      'Transaction successful',
-                      style: TextStyle(
+                      isCollected ? 'Money collected successfully' : 'Transaction successful',
+                      style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
@@ -2468,6 +4537,50 @@ class _WithdrawalReceipt extends StatelessWidget {
               ),
             ],
           ),
+          
+          // Collection Status Banner (if collected)
+          if (isCollected) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.positive.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                border: Border.all(color: AppColors.positive.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified, color: AppColors.positive, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CASH COLLECTED',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.positive,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        if (withdrawalData['collectionTime'] != null)
+                          Text(
+                            'Collected at ${withdrawalData['collectionTime']}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
           const SizedBox(height: AppSpacing.lg),
           // Transaction details
           Container(
@@ -2478,12 +4591,24 @@ class _WithdrawalReceipt extends StatelessWidget {
             ),
             child: Column(
               children: [
+                if (withdrawalData['status'] == 'collected') ...[
+                  _buildDetailRow('Status', '✅ COLLECTED', isPositive: true),
+                  const Divider(height: AppSpacing.lg),
+                ],
                 _buildDetailRow('Date', withdrawalData['date']),
                 const Divider(height: AppSpacing.lg),
                 _buildDetailRow('Time', withdrawalData['time']),
                 const Divider(height: AppSpacing.lg),
-                _buildDetailRow('Bank', withdrawalData['bank']),
+                _buildDetailRow('Account', withdrawalData['account'] ?? withdrawalData['bank'] ?? 'N/A'),
                 const Divider(height: AppSpacing.lg),
+                if (withdrawalData['branch'] != null) ...[
+                  _buildDetailRow('Location', withdrawalData['branch']),
+                  const Divider(height: AppSpacing.lg),
+                ],
+                if (withdrawalData['atmId'] != null) ...[
+                  _buildDetailRow('ATM ID', withdrawalData['atmId']),
+                  const Divider(height: AppSpacing.lg),
+                ],
                 _buildDetailRow('Original Balance', 'RM ${withdrawalData['originalBalance'].toStringAsFixed(2)}'),
                 const Divider(height: AppSpacing.lg),
                 _buildDetailRow('Withdrawal Amount', '- RM ${withdrawalData['amount'].toStringAsFixed(2)}', isNegative: true),
@@ -2494,6 +4619,41 @@ class _WithdrawalReceipt extends StatelessWidget {
               ],
             ),
           ),
+          
+          // Google Maps Link (if location available)
+          if (withdrawalData['googleMapsUrl'] != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            GestureDetector(
+              onTap: () {
+                // Open Google Maps - in real app would use url_launcher
+              },
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.accentBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.map, color: AppColors.accentBlue, size: 18),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'View Location on Google Maps',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.accentBlue,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(Icons.open_in_new, color: AppColors.accentBlue, size: 14),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          
           const SizedBox(height: AppSpacing.lg),
           // Action buttons
           if (action == null) ...[
@@ -2579,7 +4739,7 @@ class _WithdrawalReceipt extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isNegative = false, bool isBold = false}) {
+  Widget _buildDetailRow(String label, String value, {bool isNegative = false, bool isBold = false, bool isPositive = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -2595,8 +4755,8 @@ class _WithdrawalReceipt extends StatelessWidget {
           value,
           style: TextStyle(
             fontSize: 14,
-            color: isNegative ? AppColors.negative : (isBold ? AppColors.textPrimary : AppColors.textPrimary),
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            color: isPositive ? AppColors.positive : (isNegative ? AppColors.negative : (isBold ? AppColors.textPrimary : AppColors.textPrimary)),
+            fontWeight: isBold || isPositive ? FontWeight.bold : FontWeight.w600,
           ),
         ),
       ],
@@ -2667,6 +4827,28 @@ class _CustomBankFormState extends State<_CustomBankForm> {
                 'assets/images/bankcard.webp',
                 height: 180,
                 fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 180,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.accent, AppColors.accentBlue],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.credit_card, size: 48, color: Colors.white),
+                        SizedBox(height: 8),
+                        Text('Bank Card', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),
