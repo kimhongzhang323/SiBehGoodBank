@@ -148,6 +148,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
   }
 
+  void _handleQuickTransfer() {
+    // Simulate user clicking transfer
+    _handleUserMessage('Transfer money');
+  }
+
+  void _handleQuickCashWithdrawal() {
+    // Trigger cash withdrawal flow
+    _handleUserMessage('Cash withdrawal');
+  }
+
   Future<void> _startListening(Function(String) onResult) async {
     // Request microphone permission first
     final status = await Permission.microphone.request();
@@ -303,11 +313,40 @@ class _AiChatScreenState extends State<AiChatScreen> {
       });
       _scrollToBottom();
 
+    } else if (lowerMessage.contains('cash') || 
+               lowerMessage.contains('withdrawal') ||
+               lowerMessage.contains('withdraw')) {
+      
+      // Step 1: Show processing
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '🔄 Processing cash withdrawal request...',
+          'alignment': Alignment.centerLeft,
+          'isProcessing': true,
+        });
+      });
+      _scrollToBottom();
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // Step 2: Show bank selection options
+      setState(() {
+        _messages.removeLast(); // Remove processing message
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '✓ Please select your bank:',
+          'alignment': Alignment.centerLeft,
+          'showWithdrawalBankSelection': true,
+        });
+      });
+      _scrollToBottom();
+
     } else {
       setState(() {
         _messages.add({
           'speaker': 'Agent',
-          'message': 'I can help you with transfers, balance checks, and more. Try asking "Transfer money to TNG".',
+          'message': 'I can help you with transfers, cash withdrawals, and more. Try asking "Transfer money" or "Cash withdrawal".',
           'alignment': Alignment.centerLeft,
         });
       });
@@ -416,6 +455,163 @@ class _AiChatScreenState extends State<AiChatScreen> {
         );
       }
     });
+  }
+
+  void _handleWithdrawalBankSelection(String bank) async {
+    if (bank == 'Other...') {
+      // Show custom bank card form
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '💳 Please enter your bank card details:',
+          'alignment': Alignment.centerLeft,
+          'showCustomBankForm': true,
+        });
+      });
+      _scrollToBottom();
+    } else {
+      // Normal bank flow
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '💳 You selected $bank. How much would you like to withdraw?',
+          'alignment': Alignment.centerLeft,
+          'showWithdrawalAmountInput': true,
+          'selectedBank': bank,
+        });
+      });
+      _scrollToBottom();
+    }
+  }
+
+  void _handleWithdrawalAmount(String amount, String bank) async {
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '🔐 Verifying fingerprint...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '📸 Verifying face...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '✓ Verification successful! Processing withdrawal...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Generate withdrawal receipt
+    final now = DateTime.now();
+    final originalBalance = 5000.00;
+    final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+    final newBalance = originalBalance - withdrawalAmount;
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '✓ Cash withdrawal completed!',
+        'alignment': Alignment.centerLeft,
+        'showWithdrawalReceipt': true,
+        'withdrawalData': {
+          'bank': bank,
+          'amount': withdrawalAmount,
+          'originalBalance': originalBalance,
+          'newBalance': newBalance,
+          'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
+          'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+          'transactionId': 'WD${now.millisecondsSinceEpoch.toString().substring(7)}',
+        },
+      });
+    });
+    _scrollToBottom();
+  }
+
+  String _getMonthName(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
+  }
+
+  void _handleCustomBankSubmit(Map<String, String> bankData) async {
+    // Show amount input after custom bank details
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '💳 Bank card verified. How much would you like to withdraw?',
+        'alignment': Alignment.centerLeft,
+        'showWithdrawalAmountInput': true,
+        'selectedBank': bankData['bankName']!,
+      });
+    });
+    _scrollToBottom();
+  }
+
+  void _handleWithdrawalReceiptAction(String action, Map<String, dynamic> withdrawalData) {
+    setState(() {
+      // Find and update the receipt message
+      for (var msg in _messages) {
+        if (msg['showWithdrawalReceipt'] == true && msg['withdrawalData'] == withdrawalData) {
+          msg['receiptAction'] = action;
+          break;
+        }
+      }
+    });
+
+    if (action == 'print') {
+      // Show invoice image
+      Future.delayed(const Duration(milliseconds: 300), () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '📄 Generating PDF invoice...',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          setState(() {
+            _messages.add({
+              'speaker': 'Agent',
+              'message': '✓ Invoice generated successfully:',
+              'alignment': Alignment.centerLeft,
+              'showInvoice': true,
+            });
+          });
+          _scrollToBottom();
+        });
+      });
+    } else {
+      // Ignore action
+      Future.delayed(const Duration(milliseconds: 300), () {
+        setState(() {
+          _messages.add({
+            'speaker': 'Agent',
+            'message': 'Receipt ignored',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      });
+    }
   }
 
   @override
@@ -553,6 +749,117 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
+                      } else if (msg['showWithdrawalBankSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalBankGrid(onBankSelected: _handleWithdrawalBankSelection),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showCustomBankForm'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _CustomBankForm(onSubmit: _handleCustomBankSubmit),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showWithdrawalAmountInput'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalAmountInput(
+                              bank: msg['selectedBank'],
+                              onSubmit: (amount) => _handleWithdrawalAmount(amount, msg['selectedBank']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showWithdrawalReceipt'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _WithdrawalReceipt(
+                              withdrawalData: msg['withdrawalData'],
+                              action: msg['receiptAction'],
+                              onAction: (action) => _handleWithdrawalReceiptAction(action, msg['withdrawalData']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showInvoice'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: AppColors.glassWhiteLight,
+                                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                child: Image.asset(
+                                  'assets/images/invoice.webp',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
                       } else {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -569,6 +876,48 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       }
                     }),
                     const SizedBox(height: AppSpacing.xl),
+                  ],
+                ),
+              ),
+              // Quick action buttons
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _handleQuickTransfer,
+                        icon: const Icon(Icons.send, size: 18),
+                        label: const Text('Transfer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _handleQuickCashWithdrawal,
+                        icon: const Icon(Icons.atm, size: 18),
+                        label: const Text('Cash Withdrawal'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accentBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1872,3 +2221,532 @@ class _VoiceWaveAnimation extends StatelessWidget {
   }
 }
 
+// Withdrawal Bank Selection Grid
+class _WithdrawalBankGrid extends StatelessWidget {
+  const _WithdrawalBankGrid({required this.onBankSelected});
+
+  final Function(String) onBankSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildBankButton(context, 'Maybank', 'assets/images/may.png')),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: _buildBankButton(context, 'CIMB', 'assets/images/cimb.png')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(child: _buildBankButton(context, 'Public Bank', 'assets/images/public.png')),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: _buildBankButton(context, 'Hong Leong', 'assets/images/hl1.png')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(child: _buildBankButton(context, 'RHB', 'assets/images/RHB.png')),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: _buildBankButton(context, 'Other...', null)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankButton(BuildContext context, String bank, String? logoPath) {
+    return ElevatedButton(
+      onPressed: () => onBankSelected(bank),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          side: BorderSide(color: AppColors.accent.withOpacity(0.2)),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (logoPath != null)
+            Image.asset(
+              logoPath,
+              height: 40,
+              fit: BoxFit.contain,
+            )
+          else
+            Icon(Icons.more_horiz, size: 24, color: AppColors.accent),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            bank,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Withdrawal Amount Input
+class _WithdrawalAmountInput extends StatefulWidget {
+  const _WithdrawalAmountInput({
+    required this.bank,
+    required this.onSubmit,
+  });
+
+  final String bank;
+  final Function(String) onSubmit;
+
+  @override
+  State<_WithdrawalAmountInput> createState() => _WithdrawalAmountInputState();
+}
+
+class _WithdrawalAmountInputState extends State<_WithdrawalAmountInput> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Withdrawal Amount (RM)',
+              hintText: 'Enter amount',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                if (_controller.text.trim().isNotEmpty) {
+                  widget.onSubmit(_controller.text.trim());
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: const Text('Confirm Withdrawal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Withdrawal Receipt
+class _WithdrawalReceipt extends StatelessWidget {
+  const _WithdrawalReceipt({
+    required this.withdrawalData,
+    this.action,
+    required this.onAction,
+  });
+
+  final Map<String, dynamic> withdrawalData;
+  final String? action;
+  final Function(String) onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accent.withOpacity(0.1),
+            AppColors.accentBlue.withOpacity(0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.positive.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle, color: AppColors.positive, size: 32),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cash Withdrawal',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Transaction successful',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          // Transaction details
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Column(
+              children: [
+                _buildDetailRow('Date', withdrawalData['date']),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('Time', withdrawalData['time']),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('Bank', withdrawalData['bank']),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('Original Balance', 'RM ${withdrawalData['originalBalance'].toStringAsFixed(2)}'),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('Withdrawal Amount', '- RM ${withdrawalData['amount'].toStringAsFixed(2)}', isNegative: true),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('New Balance', 'RM ${withdrawalData['newBalance'].toStringAsFixed(2)}', isBold: true),
+                const Divider(height: AppSpacing.lg),
+                _buildDetailRow('Transaction ID', withdrawalData['transactionId']),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          // Action buttons
+          if (action == null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => onAction('ignore'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: BorderSide(color: AppColors.textSecondary.withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.close, size: 18),
+                        SizedBox(width: AppSpacing.xs),
+                        Text('Ignore', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => onAction('print'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.picture_as_pdf, size: 18),
+                        SizedBox(width: AppSpacing.xs),
+                        Text('Print in PDF', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                color: action == 'ignore' 
+                    ? AppColors.textSecondary.withOpacity(0.1)
+                    : AppColors.positive.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    action == 'ignore' ? Icons.block : Icons.check_circle,
+                    color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                    size: 20,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    action == 'ignore' ? 'Ignored' : 'Generating PDF...',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isNegative = false, bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+            fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            color: isNegative ? AppColors.negative : (isBold ? AppColors.textPrimary : AppColors.textPrimary),
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Custom Bank Card Form
+class _CustomBankForm extends StatefulWidget {
+  const _CustomBankForm({required this.onSubmit});
+
+  final Function(Map<String, String>) onSubmit;
+
+  @override
+  State<_CustomBankForm> createState() => _CustomBankFormState();
+}
+
+class _CustomBankFormState extends State<_CustomBankForm> {
+  final _cardNumberController = TextEditingController();
+  final _expiryDateController = TextEditingController();
+  final _bankNameController = TextEditingController();
+
+  @override
+  void dispose() {
+    _cardNumberController.dispose();
+    _expiryDateController.dispose();
+    _bankNameController.dispose();
+    super.dispose();
+  }
+
+  void _handleSubmit() {
+    if (_cardNumberController.text.trim().isEmpty ||
+        _expiryDateController.text.trim().isEmpty ||
+        _bankNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all fields'),
+          backgroundColor: AppColors.negative,
+        ),
+      );
+      return;
+    }
+
+    widget.onSubmit({
+      'cardNumber': _cardNumberController.text.trim(),
+      'expiryDate': _expiryDateController.text.trim(),
+      'bankName': _bankNameController.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhiteLight,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Bank card image
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              child: Image.asset(
+                'assets/images/bankcard.webp',
+                height: 180,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Card Number
+          TextField(
+            controller: _cardNumberController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Card Number',
+              hintText: '1234 5678 9012 3456',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Expiry Date
+          TextField(
+            controller: _expiryDateController,
+            keyboardType: TextInputType.datetime,
+            decoration: InputDecoration(
+              labelText: 'Expiry Date',
+              hintText: 'MM/YY',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Bank Name
+          TextField(
+            controller: _bankNameController,
+            decoration: InputDecoration(
+              labelText: 'Bank Name',
+              hintText: 'Enter your bank name',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Submit button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _handleSubmit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+              child: const Text('Complete', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
