@@ -9,6 +9,9 @@ class TransferReceiptScreen extends StatefulWidget {
   final String recipientName;
   final String recipientAccount;
   final bool isReceiving;
+  final String? paymentMethod; // DuitNow or IBG
+  final String? sourceAccount; // From which account
+  final String? recipientBank;
 
   const TransferReceiptScreen({
     super.key,
@@ -17,6 +20,9 @@ class TransferReceiptScreen extends StatefulWidget {
     required this.recipientName,
     required this.recipientAccount,
     this.isReceiving = false,
+    this.paymentMethod,
+    this.sourceAccount,
+    this.recipientBank,
   });
 
   @override
@@ -98,7 +104,8 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                   child: GlassCard(
                     borderRadius: 24,
                     padding: const EdgeInsets.all(32),
-                    backgroundColor: Colors.white, // <--- CHANGED: Set to solid white
+                    backgroundColor:
+                        Colors.white, // <--- CHANGED: Set to solid white
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -134,6 +141,18 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                         _buildRow(userLabel, widget.recipientName),
                         const SizedBox(height: 16),
                         _buildRow('Account', widget.recipientAccount),
+                        if (widget.recipientBank != null) ...[
+                          const SizedBox(height: 16),
+                          _buildRow('Bank', widget.recipientBank!),
+                        ],
+                        if (widget.sourceAccount != null) ...[
+                          const SizedBox(height: 16),
+                          _buildRow('From Account', widget.sourceAccount!),
+                        ],
+                        if (widget.paymentMethod != null) ...[
+                          const SizedBox(height: 16),
+                          _buildRow('Method', widget.paymentMethod!),
+                        ],
                         const SizedBox(height: 16),
                         _buildRow('Date', '$dateStr • $timeStr'),
                         const SizedBox(height: 16),
@@ -146,7 +165,8 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                                 text: 'Receipt',
                                 icon: Icons.picture_as_pdf,
                                 isLoading: _isSharing,
-                                onPressed: _isSharing ? null : _handleViewReceipt,
+                                onPressed:
+                                    _isSharing ? null : _handleViewReceipt,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -158,8 +178,11 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                                     : AppColors.accent,
                                 textColor: Colors.white,
                                 onPressed: () {
-                                  Navigator.of(context)
-                                      .popUntil((route) => route.isFirst);
+                                  // Navigate to home screen (RootShell with bottom nav)
+                                  Navigator.of(context).pushNamedAndRemoveUntil(
+                                    '/home',
+                                    (route) => false,
+                                  );
                                 },
                               ),
                             ),
@@ -200,8 +223,18 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
 
   String _getMonth(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return months[month - 1];
   }
