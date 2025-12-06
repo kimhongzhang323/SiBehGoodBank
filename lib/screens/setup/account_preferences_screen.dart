@@ -124,7 +124,7 @@ class _AccountPreferencesScreenState extends State<AccountPreferencesScreen> {
           Row(
             children: [
               Text(
-                'Step 4 of 4',
+                'Step 5 of 5',
                 style: AppTextStyles.labelMedium.copyWith(
                   color: AppColors.textSecondary,
                 ),
