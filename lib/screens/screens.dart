@@ -4,3 +4,5 @@ export 'analytics_screen.dart';
 export 'setup/setup.dart';
 export 'ai_chat_screen.dart';
 export 'root_shell.dart';
+export 'profile_screen.dart';
+export 'notifications_screen.dart';

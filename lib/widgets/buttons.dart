@@ -24,6 +24,8 @@ class QuickActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior:
+          HitTestBehavior.opaque, // FIX: Ensures the whole area is clickable
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -124,6 +126,7 @@ class SecondaryButton extends StatelessWidget {
   final double height;
   final Color borderColor;
   final Color textColor;
+  final IconData? icon; // Added Icon support
 
   const SecondaryButton({
     super.key,
@@ -133,6 +136,7 @@ class SecondaryButton extends StatelessWidget {
     this.height = AppSpacing.buttonHeightSmall,
     this.borderColor = AppColors.accent,
     this.textColor = AppColors.accent,
+    this.icon,
   });
 
   @override
@@ -149,9 +153,18 @@ class SecondaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),
         ),
-        child: Text(
-          text,
-          style: AppTextStyles.buttonMedium.copyWith(color: textColor),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: textColor),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              text,
+              style: AppTextStyles.buttonMedium.copyWith(color: textColor),
+            ),
+          ],
         ),
       ),
     );
