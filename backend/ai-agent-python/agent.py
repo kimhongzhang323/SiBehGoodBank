@@ -28,6 +28,12 @@ You can help customers with:
 5. **Loan Calculator**: Calculate monthly payments, total interest, and loan details
 6. **Cardless Withdrawal**: Generate codes for ATM withdrawals without a card
 7. **Find ATMs**: Locate nearby SiBeh Good Bank ATMs
+8. **Financial Analytics & Charts**: Generate visual charts and graphs showing:
+   - **Spending Analysis**: Pie or bar charts breaking down expenses by category
+   - **Balance Trends**: Line charts showing how account balance changed over time
+   - **Income vs Expenses**: Comparison charts showing money in vs money out
+   - **Transaction Timeline**: Visual timeline of all transactions
+   - **Monthly Summary**: Comprehensive multi-chart financial reports
 
 ## Important Guidelines
 
@@ -48,6 +54,12 @@ You can help customers with:
    - Confirm the bill account number and amount
    - Execute and provide payment confirmation
 
+3. When a user wants to see charts or analytics:
+   - Generate the appropriate chart based on their request
+   - Explain the key insights from the data
+   - Offer to show different chart types or time periods
+   - Summarize the financial metrics alongside the visual
+
 ### Malaysian Context
 - Currency is Malaysian Ringgit (MYR), displayed as "RM"
 - Format amounts as "RM X,XXX.XX"
@@ -57,7 +69,14 @@ You can help customers with:
 ### Response Format
 - Use clear formatting with bullet points and sections when listing multiple items
 - For transaction confirmations, include reference numbers
+- For chart generation, explain what the chart shows and highlight key insights
 - Always offer follow-up assistance ("Is there anything else I can help you with?")
+
+### Chart Generation Tips
+- When generating charts, describe the key findings and trends
+- Mention the time period covered (e.g., "last 30 days")
+- Highlight notable items like highest spending category or significant balance changes
+- Suggest actionable insights when appropriate (e.g., "You spent 40% on dining - consider meal planning to save money")
 
 ### Error Handling
 - If a transaction fails, explain why in simple terms
@@ -108,9 +127,11 @@ class BankingAgent:
         })
         return messages
     
-    def _process_tool_calls(self, tool_use_blocks: List[Any]) -> List[Dict[str, Any]]:
-        """Process tool calls and return results."""
+    def _process_tool_calls(self, tool_use_blocks: List[Any]) -> tuple[List[Dict[str, Any]], List[str]]:
+        """Process tool calls and return results along with any generated chart images."""
         results = []
+        chart_images = []
+        
         for tool_use in tool_use_blocks:
             tool_name = tool_use.name
             tool_input = tool_use.input
@@ -123,20 +144,26 @@ class BankingAgent:
             
             print(f"[Agent] Tool result: {json.dumps(result, indent=2)[:500]}...")
             
+            # Check if the result contains a chart image
+            if isinstance(result, dict) and "chart_image_base64" in result:
+                chart_images.append(result["chart_image_base64"])
+            
             results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_id,
                 "content": json.dumps(result)
             })
         
-        return results
+        return results, chart_images
     
-    def chat(self, user_message: str) -> str:
+    def chat(self, user_message: str) -> Dict[str, Any]:
         """
         Process a user message and return the assistant's response.
         Handles tool calls in a loop until the assistant provides a final response.
+        Returns a dict with 'message' and optionally 'chart_images'.
         """
         messages = self._build_messages(user_message)
+        all_chart_images = []
         
         for iteration in range(self.max_tool_iterations):
             print(f"\n[Agent] Iteration {iteration + 1}")
@@ -190,16 +217,24 @@ class BankingAgent:
                     "role": "assistant",
                     "content": text_response
                 })
-                return text_response
+                
+                # Return response with any chart images collected
+                result = {"message": text_response}
+                if all_chart_images:
+                    result["chart_images"] = all_chart_images
+                return result
             
             # Process tool calls
-            tool_results = self._process_tool_calls(tool_use_blocks)
+            tool_results, chart_images = self._process_tool_calls(tool_use_blocks)
+            all_chart_images.extend(chart_images)
             
             # Add tool results to messages
             messages.append({
                 "role": "user",
                 "content": tool_results
             })
+        
+        return {"message": "I apologize, but I'm having trouble completing your request. Please try again or contact customer service."}
         
         return "I apologize, but I'm having trouble completing your request. Please try again or contact customer service."
     

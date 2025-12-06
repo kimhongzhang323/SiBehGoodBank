@@ -184,6 +184,7 @@ curl -X POST "http://localhost:8084/api/v1/chat/stream" \
 
 The agent has access to the following tools:
 
+### Banking Tools
 | Tool | Description |
 |------|-------------|
 | `check_balance` | Check account balances |
@@ -200,6 +201,85 @@ The agent has access to the following tools:
 | `initiate_withdrawal` | Generate cardless ATM code |
 | `get_nearby_atms` | Find nearby ATM locations |
 
+### 📊 Graph & Analytics Tools
+| Tool | Description |
+|------|-------------|
+| `generate_spending_chart` | Generate pie/bar charts showing spending breakdown by category |
+| `generate_balance_trend_chart` | Generate line charts showing balance history over time |
+| `generate_income_expense_chart` | Generate comparison charts for income vs expenses |
+| `generate_transaction_timeline_chart` | Generate timeline visualization of transactions |
+| `generate_monthly_summary_chart` | Generate comprehensive monthly financial summary |
+
+## 📈 Chart API Endpoints
+
+### GET `/api/v1/charts/spending`
+Generate a spending breakdown chart.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `user_id` | string | "user-001" | User ID |
+| `account_id` | string | null | Account ID (uses primary if not specified) |
+| `days` | int | 30 | Number of days to analyze (1-365) |
+| `chart_type` | string | "pie" | Chart type: pie, bar, horizontal_bar |
+| `format` | string | "json" | Response format: json or image |
+
+### GET `/api/v1/charts/balance-trend`
+Generate a balance trend chart.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 30 | Number of days to show (1-365) |
+| `format` | string | "json" | Response format: json or image |
+
+### GET `/api/v1/charts/income-expense`
+Generate income vs expenses comparison chart.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 30 | Number of days to analyze (1-365) |
+| `chart_type` | string | "bar" | Chart type: bar, stacked, comparison |
+| `format` | string | "json" | Response format: json or image |
+
+### GET `/api/v1/charts/transaction-timeline`
+Generate a transaction timeline chart.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 14 | Number of days to show (1-60) |
+| `format` | string | "json" | Response format: json or image |
+
+### GET `/api/v1/charts/monthly-summary`
+Generate comprehensive monthly summary.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `months` | int | 6 | Number of months to show (1-12) |
+| `format` | string | "json" | Response format: json or image |
+
+### GET `/api/v1/analytics/summary`
+Get analytics summary without charts.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 30 | Number of days to analyze (1-365) |
+
+**Example Response (JSON format):**
+```json
+{
+  "success": true,
+  "chart_type": "spending_breakdown",
+  "period_days": 30,
+  "total_spending": 2500.00,
+  "currency": "MYR",
+  "categories": [
+    {"name": "Food & Dining", "amount": 800.00, "percentage": 32.0},
+    {"name": "Transport", "amount": 500.00, "percentage": 20.0}
+  ],
+  "chart_image_base64": "iVBORw0KGgo...",
+  "message": "Here's your spending breakdown for the last 30 days."
+}
+```
+
 ## 💬 Example Conversations
 
 ### Balance Inquiry
@@ -207,6 +287,41 @@ The agent has access to the following tools:
 User: "What's my balance?"
 Assistant: "Your Main Savings account has a balance of **RM 15,847.50**. 
            Would you like to see all your accounts?"
+```
+
+### 📊 Spending Analysis
+```
+User: "Show me my spending breakdown"
+Assistant: "Here's your spending analysis for the last 30 days:
+           
+           📊 **Spending Breakdown**
+           • Food & Dining: RM 850.00 (34%)
+           • Transport: RM 420.00 (17%)
+           • Shopping: RM 380.00 (15%)
+           • Bills & Utilities: RM 445.70 (18%)
+           • Others: RM 404.30 (16%)
+           
+           **Total Spending: RM 2,500.00**
+           
+           [Chart Image Generated]
+           
+           Would you like me to show your income vs expenses comparison?"
+```
+
+### 📈 Balance Trend
+```
+User: "How has my balance changed this month?"
+Assistant: "Here's your balance trend for the last 30 days:
+           
+           📈 **Balance Trend**
+           • Starting Balance: RM 18,500.00
+           • Current Balance: RM 15,847.50
+           • Lowest Point: RM 14,200.00 (Dec 15)
+           • Highest Point: RM 18,500.00 (Dec 1)
+           
+           Your balance decreased by RM 2,652.50 this month.
+           
+           [Chart Image Generated]"
 ```
 
 ### Fund Transfer

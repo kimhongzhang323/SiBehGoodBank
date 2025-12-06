@@ -10,7 +10,7 @@ class AiChatService {
   static const String _androidEmulatorUrl = 'http://10.0.2.2:8084';
   static const String _iosSimulatorUrl = 'http://localhost:8084';
   static const String _webUrl = 'http://localhost:8084';
-  
+
   /// Get the appropriate base URL for the current platform
   static String get _defaultBaseUrl {
     if (kIsWeb) {
@@ -27,16 +27,16 @@ class AiChatService {
     }
     return _iosSimulatorUrl;
   }
-  
+
   /// Current session ID for conversation continuity
   String? _sessionId;
-  
+
   /// User ID for the current user
   final String userId;
-  
+
   /// HTTP client for making requests
   final http.Client _client;
-  
+
   /// Current base URL (can be changed based on environment)
   String _currentBaseUrl;
 
@@ -44,8 +44,8 @@ class AiChatService {
     this.userId = 'user-001',
     http.Client? client,
     String? baseUrl,
-  }) : _client = client ?? http.Client(),
-       _currentBaseUrl = baseUrl ?? _defaultBaseUrl {
+  })  : _client = client ?? http.Client(),
+        _currentBaseUrl = baseUrl ?? _defaultBaseUrl {
     debugPrint('AiChatService initialized with URL: $_currentBaseUrl');
   }
 
@@ -63,32 +63,42 @@ class AiChatService {
   }
 
   /// Send a chat message to the AI agent and get a response.
-  /// 
+  ///
   /// Returns a [ChatResponse] containing the assistant's message.
   /// Throws [AiChatException] if the request fails.
   Future<ChatResponse> sendMessage(String message) async {
     try {
-      final response = await _client.post(
-        Uri.parse('$_currentBaseUrl/api/v1/chat'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'message': message,
-          'user_id': userId,
-          if (_sessionId != null) 'session_id': _sessionId,
-        }),
-      ).timeout(const Duration(seconds: 60));
+      final response = await _client
+          .post(
+            Uri.parse('$_currentBaseUrl/api/v1/chat'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'message': message,
+              'user_id': userId,
+              if (_sessionId != null) 'session_id': _sessionId,
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _sessionId = data['session_id'];
-        
+
+        // Parse chart_images if present
+        List<String>? chartImages;
+        if (data['chart_images'] != null) {
+          chartImages = List<String>.from(data['chart_images']);
+        }
+
         return ChatResponse(
           message: data['message'] ?? '',
           sessionId: data['session_id'],
-          timestamp: DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now(),
+          timestamp:
+              DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now(),
+          chartImages: chartImages,
         );
       } else {
         final errorBody = jsonDecode(response.body);
@@ -106,7 +116,7 @@ class AiChatService {
   }
 
   /// Send a message and receive a streaming response.
-  /// 
+  ///
   /// Returns a [Stream] of text chunks as they arrive from the server.
   Stream<String> sendMessageStream(String message) async* {
     try {
@@ -114,12 +124,12 @@ class AiChatService {
         'POST',
         Uri.parse('$_currentBaseUrl/api/v1/chat/stream'),
       );
-      
+
       request.headers.addAll({
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
       });
-      
+
       request.body = jsonEncode({
         'message': message,
         'user_id': userId,
@@ -127,14 +137,15 @@ class AiChatService {
       });
 
       final streamedResponse = await _client.send(request);
-      
+
       // Update session ID from response headers
       final newSessionId = streamedResponse.headers['x-session-id'];
       if (newSessionId != null) {
         _sessionId = newSessionId;
       }
 
-      await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
+      await for (final chunk
+          in streamedResponse.stream.transform(utf8.decoder)) {
         // Parse SSE format: "data: <content>\n\n"
         for (final line in chunk.split('\n')) {
           if (line.startsWith('data: ')) {
@@ -159,10 +170,12 @@ class AiChatService {
   Future<bool> checkHealth() async {
     debugPrint('Checking AI backend health at: $_currentBaseUrl/health');
     try {
-      final response = await _client.get(
-        Uri.parse('$_currentBaseUrl/health'),
-      ).timeout(const Duration(seconds: 5));
-      
+      final response = await _client
+          .get(
+            Uri.parse('$_currentBaseUrl/health'),
+          )
+          .timeout(const Duration(seconds: 5));
+
       debugPrint('Health check response: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
@@ -187,13 +200,15 @@ class AiChatService {
 
       final uri = Uri.parse('$_currentBaseUrl/api/v1/accounts/balance')
           .replace(queryParameters: queryParams);
-      
-      final response = await _client.get(uri).timeout(const Duration(seconds: 30));
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to get balance: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to get balance: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
@@ -221,13 +236,15 @@ class AiChatService {
 
       final uri = Uri.parse('$_currentBaseUrl/api/v1/accounts/transactions')
           .replace(queryParameters: queryParams);
-      
-      final response = await _client.get(uri).timeout(const Duration(seconds: 30));
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to get transactions: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to get transactions: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
@@ -250,13 +267,15 @@ class AiChatService {
 
       final uri = Uri.parse('$_currentBaseUrl/api/v1/exchange-rates')
           .replace(queryParameters: queryParams);
-      
-      final response = await _client.get(uri).timeout(const Duration(seconds: 30));
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to get exchange rates: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to get exchange rates: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
@@ -279,13 +298,15 @@ class AiChatService {
 
       final uri = Uri.parse('$_currentBaseUrl/api/v1/loan/calculate')
           .replace(queryParameters: queryParams);
-      
-      final response = await _client.post(uri).timeout(const Duration(seconds: 30));
+
+      final response =
+          await _client.post(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to calculate loan: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to calculate loan: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
@@ -296,14 +317,17 @@ class AiChatService {
   /// Get bill categories and providers.
   Future<Map<String, dynamic>> getBillCategories() async {
     try {
-      final response = await _client.get(
-        Uri.parse('$_currentBaseUrl/api/v1/bills/categories'),
-      ).timeout(const Duration(seconds: 30));
+      final response = await _client
+          .get(
+            Uri.parse('$_currentBaseUrl/api/v1/bills/categories'),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to get bill categories: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to get bill categories: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
@@ -330,17 +354,187 @@ class AiChatService {
 
       final uri = Uri.parse('$_currentBaseUrl/api/v1/atms/nearby')
           .replace(queryParameters: queryParams);
-      
-      final response = await _client.get(uri).timeout(const Duration(seconds: 30));
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw AiChatException('Failed to get nearby ATMs: ${response.reasonPhrase}');
+        throw AiChatException(
+            'Failed to get nearby ATMs: ${response.reasonPhrase}');
       }
     } catch (e) {
       if (e is AiChatException) rethrow;
       throw AiChatException('Error getting nearby ATMs: $e');
+    }
+  }
+
+  /// Get spending chart data.
+  Future<Map<String, dynamic>> getSpendingChart({
+    String? accountId,
+    int days = 30,
+    String chartType = 'pie',
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'user_id': userId,
+        'days': days.toString(),
+        'chart_type': chartType,
+        'format': 'json',
+      };
+      if (accountId != null) {
+        queryParams['account_id'] = accountId;
+      }
+
+      final uri = Uri.parse('$_currentBaseUrl/api/v1/charts/spending')
+          .replace(queryParameters: queryParams);
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AiChatException(
+            'Failed to get spending chart: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      if (e is AiChatException) rethrow;
+      throw AiChatException('Error getting spending chart: $e');
+    }
+  }
+
+  /// Get balance trend chart data.
+  Future<Map<String, dynamic>> getBalanceTrendChart({
+    String? accountId,
+    int days = 30,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'user_id': userId,
+        'days': days.toString(),
+        'format': 'json',
+      };
+      if (accountId != null) {
+        queryParams['account_id'] = accountId;
+      }
+
+      final uri = Uri.parse('$_currentBaseUrl/api/v1/charts/balance-trend')
+          .replace(queryParameters: queryParams);
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AiChatException(
+            'Failed to get balance trend chart: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      if (e is AiChatException) rethrow;
+      throw AiChatException('Error getting balance trend chart: $e');
+    }
+  }
+
+  /// Get income vs expense chart data.
+  Future<Map<String, dynamic>> getIncomeExpenseChart({
+    String? accountId,
+    int days = 30,
+    String chartType = 'bar',
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'user_id': userId,
+        'days': days.toString(),
+        'chart_type': chartType,
+        'format': 'json',
+      };
+      if (accountId != null) {
+        queryParams['account_id'] = accountId;
+      }
+
+      final uri = Uri.parse('$_currentBaseUrl/api/v1/charts/income-expense')
+          .replace(queryParameters: queryParams);
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AiChatException(
+            'Failed to get income/expense chart: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      if (e is AiChatException) rethrow;
+      throw AiChatException('Error getting income/expense chart: $e');
+    }
+  }
+
+  /// Get monthly summary chart data.
+  Future<Map<String, dynamic>> getMonthlySummaryChart({
+    String? accountId,
+    int months = 6,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'user_id': userId,
+        'months': months.toString(),
+        'format': 'json',
+      };
+      if (accountId != null) {
+        queryParams['account_id'] = accountId;
+      }
+
+      final uri = Uri.parse('$_currentBaseUrl/api/v1/charts/monthly-summary')
+          .replace(queryParameters: queryParams);
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AiChatException(
+            'Failed to get monthly summary chart: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      if (e is AiChatException) rethrow;
+      throw AiChatException('Error getting monthly summary chart: $e');
+    }
+  }
+
+  /// Get analytics summary without charts.
+  Future<Map<String, dynamic>> getAnalyticsSummary({
+    String? accountId,
+    int days = 30,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'user_id': userId,
+        'days': days.toString(),
+      };
+      if (accountId != null) {
+        queryParams['account_id'] = accountId;
+      }
+
+      final uri = Uri.parse('$_currentBaseUrl/api/v1/analytics/summary')
+          .replace(queryParameters: queryParams);
+
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw AiChatException(
+            'Failed to get analytics summary: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      if (e is AiChatException) rethrow;
+      throw AiChatException('Error getting analytics summary: $e');
     }
   }
 
@@ -355,15 +549,18 @@ class ChatResponse {
   final String message;
   final String? sessionId;
   final DateTime timestamp;
+  final List<String>? chartImages;
 
   ChatResponse({
     required this.message,
     this.sessionId,
     required this.timestamp,
+    this.chartImages,
   });
 
   @override
-  String toString() => 'ChatResponse(message: $message, sessionId: $sessionId)';
+  String toString() =>
+      'ChatResponse(message: $message, sessionId: $sessionId, chartImages: ${chartImages?.length ?? 0})';
 }
 
 /// Exception class for AI chat service errors.
@@ -374,5 +571,6 @@ class AiChatException implements Exception {
   AiChatException(this.message, {this.statusCode});
 
   @override
-  String toString() => 'AiChatException: $message${statusCode != null ? ' (status: $statusCode)' : ''}';
+  String toString() =>
+      'AiChatException: $message${statusCode != null ? ' (status: $statusCode)' : ''}';
 }

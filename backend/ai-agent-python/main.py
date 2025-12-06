@@ -4,14 +4,15 @@ Provides REST API endpoints for the chatbot functionality.
 """
 import uuid
 import asyncio
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
+import base64
 
 from config import settings
 from agent import BankingAgent, create_agent
@@ -25,6 +26,12 @@ from models import (
     HealthResponse,
     ErrorResponse,
     MessageRole,
+    ChartGenerationRequest,
+    SpendingChartResponse,
+    BalanceTrendChartResponse,
+    IncomeExpenseChartResponse,
+    TransactionTimelineResponse,
+    MonthlySummaryChartResponse,
 )
 
 
@@ -132,6 +139,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     - Loan calculations
     - Cardless withdrawals
     - Finding nearby ATMs
+    - Generating financial charts and analytics
     """
     try:
         agent, session_id = get_or_create_agent(
@@ -141,7 +149,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         
         # Run chat in thread pool to not block
         loop = asyncio.get_event_loop()
-        response_text = await loop.run_in_executor(
+        response_data = await loop.run_in_executor(
             None,
             agent.chat,
             request.message
@@ -150,11 +158,20 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         # Schedule cleanup
         background_tasks.add_task(cleanup_old_sessions)
         
+        # Handle both old string return and new dict return format
+        if isinstance(response_data, str):
+            response_text = response_data
+            chart_images = None
+        else:
+            response_text = response_data.get("message", "")
+            chart_images = response_data.get("chart_images")
+        
         return ChatResponse(
             message=response_text,
             user_id=request.user_id,
             session_id=session_id,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
+            chart_images=chart_images
         )
     
     except Exception as e:
@@ -345,6 +362,222 @@ async def get_nearby_atms(latitude: float = None, longitude: float = None, limit
     })
     
     return result
+
+
+# Graph/Chart Generation Endpoints
+@app.get("/api/v1/charts/spending", tags=["Charts & Analytics"])
+async def get_spending_chart(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
+    chart_type: str = Query(default="pie", description="Chart type: pie, bar, or horizontal_bar"),
+    format: str = Query(default="json", description="Response format: json or image")
+):
+    """
+    Generate a spending breakdown chart showing expenses by category.
+    
+    Returns either JSON with base64 encoded image or direct PNG image.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    result = executor.execute_tool("generate_spending_chart", {
+        "account_id": account_id,
+        "days": days,
+        "chart_type": chart_type
+    })
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    if format == "image":
+        # Return image directly
+        image_data = base64.b64decode(result["chart_image_base64"])
+        return Response(content=image_data, media_type="image/png")
+    
+    return result
+
+
+@app.get("/api/v1/charts/balance-trend", tags=["Charts & Analytics"])
+async def get_balance_trend_chart(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to show"),
+    format: str = Query(default="json", description="Response format: json or image")
+):
+    """
+    Generate a balance trend chart showing account balance over time.
+    
+    Returns either JSON with base64 encoded image or direct PNG image.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    result = executor.execute_tool("generate_balance_trend_chart", {
+        "account_id": account_id,
+        "days": days
+    })
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    if format == "image":
+        image_data = base64.b64decode(result["chart_image_base64"])
+        return Response(content=image_data, media_type="image/png")
+    
+    return result
+
+
+@app.get("/api/v1/charts/income-expense", tags=["Charts & Analytics"])
+async def get_income_expense_chart(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
+    chart_type: str = Query(default="bar", description="Chart type: bar, stacked, or comparison"),
+    format: str = Query(default="json", description="Response format: json or image")
+):
+    """
+    Generate an income vs expenses comparison chart.
+    
+    Returns either JSON with base64 encoded image or direct PNG image.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    result = executor.execute_tool("generate_income_expense_chart", {
+        "account_id": account_id,
+        "days": days,
+        "chart_type": chart_type
+    })
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    if format == "image":
+        image_data = base64.b64decode(result["chart_image_base64"])
+        return Response(content=image_data, media_type="image/png")
+    
+    return result
+
+
+@app.get("/api/v1/charts/transaction-timeline", tags=["Charts & Analytics"])
+async def get_transaction_timeline_chart(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    days: int = Query(default=14, ge=1, le=60, description="Number of days to show"),
+    format: str = Query(default="json", description="Response format: json or image")
+):
+    """
+    Generate a transaction timeline chart showing daily transaction patterns.
+    
+    Returns either JSON with base64 encoded image or direct PNG image.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    result = executor.execute_tool("generate_transaction_timeline_chart", {
+        "account_id": account_id,
+        "days": days
+    })
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    if format == "image":
+        image_data = base64.b64decode(result["chart_image_base64"])
+        return Response(content=image_data, media_type="image/png")
+    
+    return result
+
+
+@app.get("/api/v1/charts/monthly-summary", tags=["Charts & Analytics"])
+async def get_monthly_summary_chart(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    months: int = Query(default=6, ge=1, le=12, description="Number of months to show"),
+    format: str = Query(default="json", description="Response format: json or image")
+):
+    """
+    Generate a comprehensive monthly financial summary chart.
+    
+    Returns either JSON with base64 encoded image or direct PNG image.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    result = executor.execute_tool("generate_monthly_summary_chart", {
+        "account_id": account_id,
+        "months": months
+    })
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    if format == "image":
+        image_data = base64.b64decode(result["chart_image_base64"])
+        return Response(content=image_data, media_type="image/png")
+    
+    return result
+
+
+@app.get("/api/v1/analytics/summary", tags=["Charts & Analytics"])
+async def get_analytics_summary(
+    user_id: str = Query(default="user-001", description="User ID"),
+    account_id: Optional[str] = Query(default=None, description="Account ID to analyze"),
+    days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze")
+):
+    """
+    Get a comprehensive analytics summary without charts.
+    
+    Returns spending breakdown, income/expense summary, and key financial metrics.
+    """
+    from tools import BankingToolExecutor
+    
+    executor = BankingToolExecutor(user_id)
+    
+    # Get spending data
+    spending_result = executor.execute_tool("generate_spending_chart", {
+        "account_id": account_id,
+        "days": days,
+        "chart_type": "pie"
+    })
+    
+    # Get income/expense data
+    income_expense_result = executor.execute_tool("generate_income_expense_chart", {
+        "account_id": account_id,
+        "days": days,
+        "chart_type": "comparison"
+    })
+    
+    # Get balance data
+    balance_result = executor.execute_tool("generate_balance_trend_chart", {
+        "account_id": account_id,
+        "days": days
+    })
+    
+    summary = {
+        "period_days": days,
+        "currency": "MYR",
+        "spending_summary": {
+            "total_spending": spending_result.get("total_spending", 0),
+            "categories": spending_result.get("categories", [])
+        } if "error" not in spending_result else None,
+        "cash_flow_summary": {
+            "total_income": income_expense_result.get("total_income", 0),
+            "total_expenses": income_expense_result.get("total_expenses", 0),
+            "net_cash_flow": income_expense_result.get("net_cash_flow", 0),
+            "savings_rate": income_expense_result.get("savings_rate", 0)
+        } if "error" not in income_expense_result else None,
+        "balance_summary": {
+            "current_balance": balance_result.get("current_balance", 0),
+            "min_balance": balance_result.get("min_balance", 0),
+            "max_balance": balance_result.get("max_balance", 0),
+            "average_balance": balance_result.get("average_balance", 0),
+            "balance_change": balance_result.get("balance_change", 0)
+        } if "error" not in balance_result else None
+    }
+    
+    return summary
 
 
 # Run the application

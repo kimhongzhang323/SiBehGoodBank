@@ -83,13 +83,15 @@ class ChatResponse(BaseModel):
     user_id: str = Field(..., description="User ID")
     session_id: Optional[str] = Field(default=None, description="Session ID for continuation")
     timestamp: datetime = Field(default_factory=datetime.now)
+    chart_images: Optional[List[str]] = Field(default=None, description="Base64 encoded chart images if any were generated")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "message": "Your Main Savings account balance is RM 15,847.50.",
                 "user_id": "user-001",
-                "timestamp": "2024-01-15T10:30:00"
+                "timestamp": "2024-01-15T10:30:00",
+                "chart_images": None
             }
         }
 
@@ -344,3 +346,105 @@ class PendingBillsResponse(BaseModel):
     total_due: float
     currency: str = "MYR"
     count: int
+
+
+# Graph/Chart Models
+class ChartCategory(BaseModel):
+    """Category breakdown for spending charts."""
+    name: str
+    amount: float
+    percentage: float
+
+
+class SpendingChartResponse(BaseModel):
+    """Response model for spending chart generation."""
+    success: bool
+    chart_type: str = "spending_breakdown"
+    chart_format: str
+    period_days: int
+    total_spending: float
+    currency: str = "MYR"
+    categories: List[ChartCategory]
+    chart_image_base64: str
+    message: str
+    error: Optional[str] = None
+
+
+class BalanceTrendChartResponse(BaseModel):
+    """Response model for balance trend chart generation."""
+    success: bool
+    chart_type: str = "balance_trend"
+    period_days: int
+    current_balance: float
+    min_balance: float
+    max_balance: float
+    average_balance: float
+    balance_change: float
+    currency: str = "MYR"
+    chart_image_base64: str
+    message: str
+    error: Optional[str] = None
+
+
+class IncomeExpenseChartResponse(BaseModel):
+    """Response model for income vs expense chart generation."""
+    success: bool
+    chart_type: str = "income_expense"
+    chart_format: str
+    period_days: int
+    total_income: float
+    total_expenses: float
+    net_cash_flow: float
+    savings_rate: float
+    currency: str = "MYR"
+    chart_image_base64: str
+    message: str
+    error: Optional[str] = None
+
+
+class TransactionTimelineResponse(BaseModel):
+    """Response model for transaction timeline chart."""
+    success: bool
+    chart_type: str = "transaction_timeline"
+    period_days: int
+    total_transactions: int
+    average_per_day: float
+    busiest_day: Optional[str] = None
+    chart_image_base64: str
+    message: str
+    error: Optional[str] = None
+
+
+class MonthlyBreakdown(BaseModel):
+    """Monthly financial breakdown."""
+    month: str
+    income: float
+    expenses: float
+    net: float
+
+
+class MonthlySummaryChartResponse(BaseModel):
+    """Response model for monthly summary chart generation."""
+    success: bool
+    chart_type: str = "monthly_summary"
+    period_months: int
+    total_income: float
+    total_expenses: float
+    net_cash_flow: float
+    average_monthly_income: float
+    average_monthly_expenses: float
+    savings_rate: float
+    monthly_breakdown: List[MonthlyBreakdown]
+    currency: str = "MYR"
+    chart_image_base64: str
+    message: str
+    error: Optional[str] = None
+
+
+class ChartGenerationRequest(BaseModel):
+    """Generic request model for chart generation."""
+    user_id: str = Field(default="user-001", description="User ID")
+    account_id: Optional[str] = Field(default=None, description="Account ID to analyze")
+    days: Optional[int] = Field(default=30, description="Number of days to analyze")
+    months: Optional[int] = Field(default=6, description="Number of months to analyze")
+    chart_type: Optional[str] = Field(default=None, description="Type of chart to generate")
