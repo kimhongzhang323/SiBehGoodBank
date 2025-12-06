@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
+import 'transfer_receipt_screen.dart'; // Updated import
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -37,7 +38,6 @@ class _TransferScreenState extends State<TransferScreen> {
                 Navigator.pop(context); // Close Receiver Prompt
                 _completeTransfer();
               },
-              // FIX: Add the required onPasswordSelected parameter here
               onPasswordSelected: () {
                 Navigator.pop(context);
                 _showPasswordPrompt(context, 'Receiver');
@@ -53,34 +53,14 @@ class _TransferScreenState extends State<TransferScreen> {
 
   void _completeTransfer() {
     setState(() => _isLoading = false);
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: AppColors.positive, size: 64),
-            const SizedBox(height: 16),
-            Text('Transfer Successful!', style: AppTextStyles.headlineSmall),
-            const SizedBox(height: 8),
-            Text(
-              '\$${_amountController.text} sent successfully.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            PrimaryButton(
-              text: 'Done',
-              onPressed: () {
-                Navigator.of(ctx).pop(); // Close Dialog
-                Navigator.of(context).pop(); // Go back to Home
-              },
-            )
-          ],
+
+    // Navigate to Receipt Screen (renamed class)
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => TransferReceiptScreen(
+          amount: _amountController.text,
+          recipientName: 'John Doe',
+          recipientAccount: '**** 4589',
         ),
       ),
     );
@@ -215,7 +195,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       },
                       onPasswordSelected: () {
                         Navigator.pop(context);
-                        _completeTransfer(); // Assume receiver password success
+                        _completeTransfer();
                       });
                 });
               } else {
