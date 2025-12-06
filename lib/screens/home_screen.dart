@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'analytics_screen.dart';
-import 'ai_chat_screen.dart';
-import 'profile_screen.dart';
+import 'gamification_screen.dart';
+import 'news_screen.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
+import 'secure_tac_screen.dart';
 import 'transfer_screen.dart';
 
 // Currency data model
@@ -183,6 +185,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Quick action buttons
             _buildQuickActions(context),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // Services row (small icons)
+            _buildServicesRow(context),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // News preview section
+            _buildNewsPreview(context),
 
             const SizedBox(height: AppSpacing.lg),
 
@@ -454,19 +466,266 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          QuickActionButton(
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServicesRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenPadding),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildServiceIcon(
+            context,
+            icon: Icons.security,
+            label: 'SecureTAC',
+            color: const Color(0xFF6C63FF),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const SecureTacScreen()),
+            ),
+          ),
+          _buildServiceIcon(
+            context,
+            icon: Icons.emoji_events,
+            label: 'Rewards',
+            color: const Color(0xFFFFB300),
+            badge: '2.4k',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const GamificationScreen()),
+            ),
+          ),
+          _buildServiceIcon(
+            context,
+            icon: Icons.receipt_long,
+            label: 'Bills',
+            color: const Color(0xFFE91E63),
+            onTap: () {},
+          ),
+          _buildServiceIcon(
+            context,
+            icon: Icons.phone_android,
+            label: 'Top Up',
+            color: const Color(0xFF00BCD4),
+            onTap: () {},
+          ),
+          _buildServiceIcon(
+            context,
             icon: Icons.more_horiz,
             label: 'More',
-            iconColor: AppColors.textSecondary,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const AiChatScreen(),
-                ),
-              );
-            },
+            color: AppColors.textSecondary,
+            onTap: () {},
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildServiceIcon(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    String? badge,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              if (badge != null)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.negative,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsPreview(BuildContext context) {
+    final newsItems = [
+      {
+        'title': '🎉 Year-End Bonus: 5% Cashback',
+        'subtitle': 'Spend RM500+ this week and earn extra cashback!',
+        'time': '2h ago',
+        'isPromo': true,
+      },
+      {
+        'title': 'New Feature: Family Chain',
+        'subtitle': 'Monitor and protect your family\'s finances together.',
+        'time': '5h ago',
+        'isPromo': false,
+      },
+      {
+        'title': '⚠️ Security Alert',
+        'subtitle': 'We\'ve enhanced our fraud detection system.',
+        'time': '1d ago',
+        'isPromo': false,
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'News & Updates',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const NewsScreen()),
+                ),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...newsItems.map((news) => _buildNewsItem(
+                context,
+                title: news['title'] as String,
+                subtitle: news['subtitle'] as String,
+                time: news['time'] as String,
+                isPromo: news['isPromo'] as bool,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNewsItem(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required String time,
+    required bool isPromo,
+  }) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const NewsScreen()),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isPromo ? const Color(0xFFFFF8E1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isPromo ? const Color(0xFFFFE082) : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isPromo
+                    ? const Color(0xFFFFB300).withOpacity(0.15)
+                    : AppColors.accent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isPromo ? Icons.local_offer : Icons.article,
+                color: isPromo ? const Color(0xFFFFB300) : AppColors.accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              time,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textLight,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,8 +1,11 @@
-export 'onboarding_screen.dart';
-export 'home_screen.dart';
-export 'analytics_screen.dart';
-export 'setup/setup.dart';
 export 'ai_chat_screen.dart';
-export 'root_shell.dart';
-export 'profile_screen.dart';
+export 'analytics_screen.dart';
+export 'gamification_screen.dart';
+export 'home_screen.dart';
+export 'news_screen.dart';
 export 'notifications_screen.dart';
+export 'onboarding_screen.dart';
+export 'profile_screen.dart';
+export 'root_shell.dart';
+export 'secure_tac_screen.dart';
+export 'setup/setup.dart';
