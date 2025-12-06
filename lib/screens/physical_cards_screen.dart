@@ -115,9 +115,11 @@ class _PhysicalCardsScreenState extends State<PhysicalCardsScreen>
           color: AppColors.accent,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
         labelColor: Colors.white,
         unselectedLabelColor: AppColors.textSecondary,
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
         dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: 'My Cards'),
@@ -912,16 +914,38 @@ class _CardApplicationFormState extends State<_CardApplicationForm> {
               child: OutlinedButton(
                 onPressed: () => setState(() => _currentStep = 0),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: widget.color),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Back'),
+                child: Text(
+                  'Back',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: widget.color,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: PrimaryButton(
-                text: 'Continue',
+              child: ElevatedButton(
                 onPressed: () => setState(() => _currentStep = 2),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.color,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Continue',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -1044,17 +1068,38 @@ class _CardApplicationFormState extends State<_CardApplicationForm> {
               child: OutlinedButton(
                 onPressed: () => setState(() => _currentStep = 1),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: widget.color),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Back'),
+                child: Text(
+                  'Back',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: widget.color,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: PrimaryButton(
-                text: 'Submit Application',
-                onPressed: _agreedToTerms ? () => _submitApplication() : () {},
-                backgroundColor: _agreedToTerms ? widget.color : Colors.grey,
+              child: ElevatedButton(
+                onPressed: _agreedToTerms ? () => _submitApplication() : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _agreedToTerms ? widget.color : Colors.grey[300],
+                  foregroundColor: _agreedToTerms ? Colors.white : Colors.grey[600],
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Submit Application',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

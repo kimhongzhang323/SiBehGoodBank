@@ -158,9 +158,11 @@ class _GoalInvestmentScreenState extends State<GoalInvestmentScreen>
           color: AppColors.accent,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
         labelColor: Colors.white,
         unselectedLabelColor: AppColors.textSecondary,
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
         dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: 'My Investments'),

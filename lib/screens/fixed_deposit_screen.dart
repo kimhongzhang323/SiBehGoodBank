@@ -146,9 +146,11 @@ class _FixedDepositScreenState extends State<FixedDepositScreen>
           color: AppColors.accent,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
+        indicatorSize: TabBarIndicatorSize.tab,
         labelColor: Colors.white,
         unselectedLabelColor: AppColors.textSecondary,
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
         dividerColor: Colors.transparent,
         tabs: const [
           Tab(text: 'My Deposits'),
@@ -372,7 +374,15 @@ class _FixedDepositScreenState extends State<FixedDepositScreen>
   }
 
   Widget _buildNewDepositTab() {
-    return _NewDepositForm();
+    return _NewDepositForm(
+      onDepositCreated: (deposit) {
+        setState(() {
+          _activeDeposits.add(deposit);
+        });
+        // Switch to My Deposits tab to show the new deposit
+        _tabController.animateTo(0);
+      },
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -385,6 +395,10 @@ class _FixedDepositScreenState extends State<FixedDepositScreen>
 }
 
 class _NewDepositForm extends StatefulWidget {
+  final void Function(_FixedDepositItem deposit) onDepositCreated;
+
+  const _NewDepositForm({required this.onDepositCreated});
+
   @override
   State<_NewDepositForm> createState() => _NewDepositFormState();
 }
@@ -746,6 +760,25 @@ class _NewDepositFormState extends State<_NewDepositForm> {
   }
 
   void _showConfirmation() {
+    final amount = double.tryParse(_amountController.text) ?? 0;
+    final interestRate = _interestRates[_selectedTenure] ?? 3.50;
+    final startDate = DateTime.now();
+    final maturityDate = DateTime(
+      startDate.year,
+      startDate.month + _selectedTenure,
+      startDate.day,
+    );
+    
+    // Create the new deposit
+    final newDeposit = _FixedDepositItem(
+      id: 'FD${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
+      amount: amount,
+      interestRate: interestRate,
+      tenure: _selectedTenure,
+      maturityDate: maturityDate,
+      startDate: startDate,
+    );
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -773,7 +806,7 @@ class _NewDepositFormState extends State<_NewDepositForm> {
             ),
             const SizedBox(height: AppSpacing.md),
             const Text(
-              'Application Submitted!',
+              'Fixed Deposit Created!',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -781,10 +814,10 @@ class _NewDepositFormState extends State<_NewDepositForm> {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'Your fixed deposit application has been submitted. You will receive a confirmation shortly.',
+            Text(
+              'Your RM ${amount.toStringAsFixed(2)} fixed deposit at ${interestRate.toStringAsFixed(2)}% p.a. for $_selectedTenure months has been created.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textSecondary,
               ),
             ),
@@ -792,10 +825,16 @@ class _NewDepositFormState extends State<_NewDepositForm> {
             SizedBox(
               width: double.infinity,
               child: PrimaryButton(
-                text: 'Done',
+                text: 'View My Deposits',
                 onPressed: () {
                   Navigator.pop(context);
-                  Navigator.pop(context);
+                  // Add the deposit and switch to My Deposits tab
+                  widget.onDepositCreated(newDeposit);
+                  // Clear the form
+                  _amountController.clear();
+                  setState(() {
+                    _selectedTenure = 12;
+                  });
                 },
               ),
             ),

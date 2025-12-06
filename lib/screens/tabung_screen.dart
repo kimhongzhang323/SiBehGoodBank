@@ -940,13 +940,39 @@ class _TabungScreenState extends State<TabungScreen> {
                   child: PrimaryButton(
                     text: 'Create Tabung',
                     onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Created ${nameController.text}!'),
-                          backgroundColor: selectedColor,
-                        ),
-                      );
+                      final name = nameController.text.trim();
+                      final target = double.tryParse(targetController.text) ?? 0;
+                      final monthly = double.tryParse(monthlyController.text) ?? 0;
+                      
+                      if (name.isNotEmpty && target > 0 && monthly > 0) {
+                        final newGoal = _TabungGoal(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          name: name,
+                          targetAmount: target,
+                          currentAmount: 0,
+                          monthlyContribution: monthly,
+                          icon: selectedIcon,
+                          color: selectedColor,
+                          createdDate: DateTime.now(),
+                        );
+                        setState(() {
+                          _goals.add(newGoal);
+                        });
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Created $name!'),
+                            backgroundColor: selectedColor,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please fill in all fields'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                   ),
                 ),
