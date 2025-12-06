@@ -54,8 +54,9 @@ class SibehGoodBankApp extends StatelessWidget {
           labelSmall: AppTextStyles.labelSmall,
         ),
       ),
-      home: const OnboardingScreen(),
+      home: const SetupLandingScreen(),
       routes: {
+        '/setup': (context) => const SetupLandingScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/home': (context) => const RootShell(),
         '/analytics': (context) => const AnalyticsScreen(),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../constants/constants.dart';
 import '../../widgets/widgets.dart';
+import '../root_shell.dart';
 import 'personal_info_setup_screen.dart';
 
 /// Professional banking setup landing page
@@ -305,6 +306,12 @@ class SetupLandingScreen extends StatelessWidget {
             onPressed: () {
               Navigator.pop(context);
               // Navigate to home with limited features
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const RootShell(),
+                ),
+                (route) => false,
+              );
             },
             child: Text(
               'Skip for Now',

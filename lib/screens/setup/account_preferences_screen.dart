@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/constants.dart';
 import '../../widgets/widgets.dart';
-import '../home_screen.dart';
+import '../root_shell.dart';
 
 /// Account preferences screen - final step in setup
 class AccountPreferencesScreen extends StatefulWidget {
@@ -598,10 +598,10 @@ class _AccountPreferencesScreenState extends State<AccountPreferencesScreen> {
                 backgroundColor: AppColors.textPrimary,
                 textColor: Colors.white,
                 onPressed: () {
-                  // Navigate to home and clear stack
+                  // Navigate to RootShell (with navbar) and clear stack
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
-                      builder: (context) => const HomeScreen(),
+                      builder: (context) => const RootShell(),
                     ),
                     (route) => false,
                   );
