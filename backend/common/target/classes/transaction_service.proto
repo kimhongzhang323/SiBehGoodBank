@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package com.sibehgoodbank.grpc.transaction;
+
+option java_multiple_files = true;
+option java_package = "com.sibehgoodbank.grpc.transaction";
+option java_outer_classname = "TransactionServiceProto";
+
+// Transaction Service gRPC definitions for inter-service communication
+
+// Transaction lookup request
+message GetTransactionRequest {
+    string transaction_id = 1;
+}
+
+// Get transactions by account
+message GetTransactionsByAccountRequest {
+    string account_id = 1;
+    int32 page = 2;
+    int32 size = 3;
+    int64 start_date = 4;   // Unix timestamp
+    int64 end_date = 5;     // Unix timestamp
+}
+
+// Get transactions by user
+message GetTransactionsByUserRequest {
+    string user_id = 1;
+    int32 page = 2;
+    int32 size = 3;
+}
+
+// Transaction response
+message TransactionResponse {
+    string transaction_id = 1;
+    string reference_number = 2;
+    string from_account_id = 3;
+    string to_account_id = 4;
+    string amount = 5;          // String for decimal precision
+    string fee = 6;
+    string currency = 7;
+    string type = 8;            // TRANSFER, DEPOSIT, WITHDRAWAL, PAYMENT
+    string status = 9;          // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+    string description = 10;
+    int64 created_at = 11;
+    int64 completed_at = 12;
+    map<string, string> metadata = 13;
+}
+
+// Transactions list response
+message TransactionsResponse {
+    repeated TransactionResponse transactions = 1;
+    int32 total = 2;
+    int32 page = 3;
+    int32 size = 4;
+}
+
+// Create transfer request
+message CreateTransferRequest {
+    string from_account_id = 1;
+    string to_account_id = 2;
+    string amount = 3;
+    string currency = 4;
+    string description = 5;
+    string idempotency_key = 6;
+    map<string, string> metadata = 7;
+}
+
+// Create deposit request
+message CreateDepositRequest {
+    string account_id = 1;
+    string amount = 2;
+    string currency = 3;
+    string source = 4;          // Source of deposit (CASH, CHEQUE, BANK_TRANSFER)
+    string description = 5;
+    string idempotency_key = 6;
+}
+
+// Create withdrawal request
+message CreateWithdrawalRequest {
+    string account_id = 1;
+    string amount = 2;
+    string currency = 3;
+    string destination = 4;     // Destination (ATM, BANK_TRANSFER, CASH)
+    string description = 5;
+    string idempotency_key = 6;
+}
+
+// Transaction creation response
+message TransactionCreatedResponse {
+    bool success = 1;
+    string transaction_id = 2;
+    string reference_number = 3;
+    string status = 4;
+    string message = 5;
+}
+
+// Transaction status check
+message GetTransactionStatusRequest {
+    string transaction_id = 1;
+}
+
+message TransactionStatusResponse {
+    string transaction_id = 1;
+    string status = 2;
+    string message = 3;
+    int64 last_updated = 4;
+}
+
+// Cancel transaction request
+message CancelTransactionRequest {
+    string transaction_id = 1;
+    string reason = 2;
+}
+
+message CancelTransactionResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// Transaction validation request
+message ValidateTransactionRequest {
+    string from_account_id = 1;
+    string to_account_id = 2;
+    string amount = 3;
+    string currency = 4;
+    string type = 5;
+}
+
+message ValidateTransactionResponse {
+    bool valid = 1;
+    bool sufficient_funds = 2;
+    bool account_active = 3;
+    bool within_limits = 4;
+    string estimated_fee = 5;
+    repeated string errors = 6;
+}
+
+// Transaction Service
+service TransactionService {
+    // Get transaction by ID
+    rpc GetTransaction(GetTransactionRequest) returns (TransactionResponse);
+    
+    // Get transactions by account
+    rpc GetTransactionsByAccount(GetTransactionsByAccountRequest) returns (TransactionsResponse);
+    
+    // Get transactions by user
+    rpc GetTransactionsByUser(GetTransactionsByUserRequest) returns (TransactionsResponse);
+    
+    // Create internal transfer
+    rpc CreateTransfer(CreateTransferRequest) returns (TransactionCreatedResponse);
+    
+    // Create deposit
+    rpc CreateDeposit(CreateDepositRequest) returns (TransactionCreatedResponse);
+    
+    // Create withdrawal
+    rpc CreateWithdrawal(CreateWithdrawalRequest) returns (TransactionCreatedResponse);
+    
+    // Get transaction status
+    rpc GetTransactionStatus(GetTransactionStatusRequest) returns (TransactionStatusResponse);
+    
+    // Cancel pending transaction
+    rpc CancelTransaction(CancelTransactionRequest) returns (CancelTransactionResponse);
+    
+    // Validate transaction before creation
+    rpc ValidateTransaction(ValidateTransactionRequest) returns (ValidateTransactionResponse);
+}
