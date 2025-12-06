@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/constants.dart';
 import '../../widgets/widgets.dart';
-import 'account_preferences_screen.dart';
+import 'family_chain_screen.dart';
 
 /// Passkey setup screen for alternative device access
 class PasskeySetupScreen extends StatefulWidget {
@@ -114,14 +114,14 @@ class _PasskeySetupScreenState extends State<PasskeySetupScreen> {
           Row(
             children: [
               Text(
-                'Step 3 of 4',
+                'Step 3 of 5',
                 style: AppTextStyles.labelMedium.copyWith(
                   color: AppColors.textSecondary,
                 ),
               ),
               const Spacer(),
               Text(
-                '75%',
+                '60%',
                 style: AppTextStyles.labelMedium.copyWith(
                   color: AppColors.accent,
                   fontWeight: FontWeight.w600,
@@ -131,7 +131,7 @@ class _PasskeySetupScreenState extends State<PasskeySetupScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           LinearProgressIndicator(
-            value: 0.75,
+            value: 0.60,
             backgroundColor: AppColors.lavender.withOpacity(0.3),
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
             borderRadius: BorderRadius.circular(4),
@@ -618,7 +618,7 @@ class _PasskeySetupScreenState extends State<PasskeySetupScreen> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => const AccountPreferencesScreen(),
+                  builder: (context) => const FamilyChainScreen(),
                 ),
               );
             },
@@ -630,7 +630,7 @@ class _PasskeySetupScreenState extends State<PasskeySetupScreen> {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const AccountPreferencesScreen(),
+                      builder: (context) => const FamilyChainScreen(),
                     ),
                   );
                 },
