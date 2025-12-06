@@ -37,6 +37,12 @@ dependencies:
   
   # Local storage for user preferences
   shared_preferences: ^2.2.2
+  
+  # QR code scanning
+  mobile_scanner: ^5.1.1
+  
+  # Image picker for uploading QR code images
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:

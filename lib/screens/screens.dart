@@ -8,3 +8,4 @@ export 'navbar_customization_screen.dart';
 export 'settings_screen.dart';
 export 'profile_screen.dart';
 export 'notifications_screen.dart';
+export 'scan_qr_screen.dart';
