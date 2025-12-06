@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
-import 'transaction_receipt_screen.dart'; // Use generic receipt
+import 'transfer_receipt_screen.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -39,11 +39,11 @@ class _TransferScreenState extends State<TransferScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => TransactionReceiptScreen(
-          type: TransactionType.sent, // Specify Type
+        builder: (context) => TransferReceiptScreen(
           amount: _amountController.text,
-          peerName: 'John Doe',
-          peerAccount: '**** 4589',
+          recipientName: 'John Doe',
+          recipientAccount: '**** 4589',
+          isReceiving: false, // <--- Explicitly sets UI to Standard/Negative
         ),
       ),
     );
@@ -150,6 +150,7 @@ class _TransferScreenState extends State<TransferScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('$userRole Password'),
         content: const TextField(
+          autofocus: true,
           obscureText: true,
           decoration: InputDecoration(hintText: 'Enter password'),
         ),
@@ -171,7 +172,7 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 }
 
-// Reusable Biometric Sheet (Same as before)
+// Reusable Biometric Sheet
 class _BiometricSheet extends StatefulWidget {
   final String role;
   final VoidCallback onSuccess;

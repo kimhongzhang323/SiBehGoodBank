@@ -6,12 +6,14 @@ class TransferReceiptScreen extends StatelessWidget {
   final String amount;
   final String recipientName;
   final String recipientAccount;
+  final bool isReceiving;
 
   const TransferReceiptScreen({
     super.key,
     required this.amount,
     required this.recipientName,
     required this.recipientAccount,
+    this.isReceiving = false, // Defaults to sending money
   });
 
   @override
@@ -23,10 +25,18 @@ class TransferReceiptScreen extends StatelessWidget {
         "${_formatHour(now.hour)}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
     final refId = 'REF-${now.millisecondsSinceEpoch.toString().substring(5)}';
 
+    // UI Configuration based on type
+    final statusColor = isReceiving ? AppColors.positive : AppColors.accent;
+    final titleText = isReceiving ? 'Money Received' : 'Transfer Successful';
+    final amountSign = isReceiving ? '+' : '-';
+    final amountColor =
+        isReceiving ? AppColors.positive : AppColors.textPrimary;
+    final userLabel = isReceiving ? 'From' : 'To';
+
     return Scaffold(
       body: Stack(
         children: [
-          // Background with required child fix
+          // Background
           const HolographicBackground(
             child: SizedBox.expand(),
           ),
@@ -46,33 +56,37 @@ class TransferReceiptScreen extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Success Icon
+                        // Success Icon (Dynamic Color)
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppColors.positive.withOpacity(0.1),
+                            color: statusColor.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.check_rounded,
-                            color: AppColors.positive,
+                          child: Icon(
+                            isReceiving
+                                ? Icons.download_rounded
+                                : Icons.check_rounded,
+                            color: statusColor,
                             size: 40,
                           ),
                         ),
 
                         const SizedBox(height: 24),
 
-                        const Text(
-                          'Transfer Successful',
+                        // Dynamic Title
+                        Text(
+                          titleText,
                           style: AppTextStyles.headlineSmall,
                         ),
 
                         const SizedBox(height: 8),
 
+                        // Dynamic Amount
                         Text(
-                          '-\$$amount',
+                          '$amountSign\$$amount',
                           style: AppTextStyles.amountLarge.copyWith(
-                            color: AppColors.textPrimary,
+                            color: amountColor,
                           ),
                         ),
 
@@ -81,7 +95,7 @@ class TransferReceiptScreen extends StatelessWidget {
                         const SizedBox(height: 24),
 
                         // Details
-                        _buildRow('To', recipientName),
+                        _buildRow(userLabel, recipientName),
                         const SizedBox(height: 16),
                         _buildRow('Account', recipientAccount),
                         const SizedBox(height: 16),
@@ -105,10 +119,11 @@ class TransferReceiptScreen extends StatelessWidget {
                             Expanded(
                               child: PrimaryButton(
                                 text: 'Done',
-                                backgroundColor: AppColors.accent,
+                                backgroundColor: isReceiving
+                                    ? AppColors.positive
+                                    : AppColors.accent,
                                 textColor: Colors.white,
                                 onPressed: () {
-                                  // Pop until we reach the Home Screen
                                   Navigator.of(context)
                                       .popUntil((route) => route.isFirst);
                                 },

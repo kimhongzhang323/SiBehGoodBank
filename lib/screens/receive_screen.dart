@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
-import 'transaction_receipt_screen.dart';
+import 'transfer_receipt_screen.dart';
 
 class ReceiveScreen extends StatefulWidget {
   const ReceiveScreen({super.key});
@@ -38,11 +38,11 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => TransactionReceiptScreen(
-          type: TransactionType.received, // Specify Type
+        builder: (context) => TransferReceiptScreen(
           amount: _amountController.text,
-          peerName: 'Sender Name', // Placeholder
-          peerAccount: '**** 1234',
+          recipientName: 'Sender Name', // Displaying who money came FROM
+          recipientAccount: '**** 1234',
+          isReceiving: true, // <--- CRITICAL UPDATE: Sets the UI to Green/+
         ),
       ),
     );
@@ -154,6 +154,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('$userRole Password'),
         content: const TextField(
+          autofocus: true,
           obscureText: true,
           decoration: InputDecoration(hintText: 'Enter password'),
         ),
@@ -175,7 +176,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   }
 }
 
-// Biometric Sheet copy for Receive Screen (could be extracted to a widget file)
 class _ReceiveBiometricSheet extends StatefulWidget {
   final String role;
   final VoidCallback onSuccess;
