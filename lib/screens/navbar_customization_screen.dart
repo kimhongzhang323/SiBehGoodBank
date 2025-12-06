@@ -271,6 +271,7 @@ class _NavbarCustomizationScreenState extends State<NavbarCustomizationScreen> {
         ReorderableListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
           itemCount: _selectedItems.length,
           onReorder: _onReorder,
           proxyDecorator: (child, index, animation) {
@@ -295,6 +296,7 @@ class _NavbarCustomizationScreenState extends State<NavbarCustomizationScreen> {
             
             return _buildSelectedItemTile(
               key: ValueKey(type),
+              index: index,
               action: action,
               isPrimary: isPrimary,
               showStarButton: showStarButton,
@@ -309,6 +311,7 @@ class _NavbarCustomizationScreenState extends State<NavbarCustomizationScreen> {
 
   Widget _buildSelectedItemTile({
     required Key key,
+    required int index,
     required QuickAction action,
     required bool isPrimary,
     required bool showStarButton,
@@ -378,8 +381,11 @@ class _NavbarCustomizationScreenState extends State<NavbarCustomizationScreen> {
               onPressed: onRemove,
               tooltip: 'Remove from navbar',
             ),
-            // Drag handle - single menu/reorder icon
-            const Icon(Icons.menu, color: AppColors.textLight, size: 20),
+            // Drag handle with ReorderableDragStartListener
+            ReorderableDragStartListener(
+              index: index,
+              child: const Icon(Icons.drag_handle, color: AppColors.textLight, size: 20),
+            ),
           ],
         ),
       ),
