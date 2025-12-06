@@ -103,8 +103,8 @@ class ProfileScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.accent, width: 3),
                     image: const DecorationImage(
-                      image: NetworkImage(
-                        'https://api.dicebear.com/7.x/avataaars/png?seed=banking',
+                      image: AssetImage(
+                        'assets/images/profile.jpg',
                       ),
                       fit: BoxFit.cover,
                     ),
@@ -132,7 +132,7 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             const Text(
-              'Ahmad Hafiz bin Abdullah',
+              'Jax Kim',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -140,8 +140,16 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
+            const Text(
+              '小金少',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
             Text(
-              'ahmad.hafiz@email.com',
+              'jaxkim@email.com',
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),

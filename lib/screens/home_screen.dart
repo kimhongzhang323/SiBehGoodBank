@@ -35,15 +35,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Available currencies
   static const List<CurrencyInfo> currencies = [
-    CurrencyInfo(code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', flag: '🇲🇾', exchangeRate: 1.0),
-    CurrencyInfo(code: 'SGD', symbol: 'S\$', name: 'Singapore Dollar', flag: '🇸🇬', exchangeRate: 0.29),
-    CurrencyInfo(code: 'USD', symbol: '\$', name: 'US Dollar', flag: '🇺🇸', exchangeRate: 0.21),
-    CurrencyInfo(code: 'EUR', symbol: '€', name: 'Euro', flag: '🇪🇺', exchangeRate: 0.20),
-    CurrencyInfo(code: 'GBP', symbol: '£', name: 'British Pound', flag: '🇬🇧', exchangeRate: 0.17),
-    CurrencyInfo(code: 'JPY', symbol: '¥', name: 'Japanese Yen', flag: '🇯🇵', exchangeRate: 32.5),
-    CurrencyInfo(code: 'CNY', symbol: '¥', name: 'Chinese Yuan', flag: '🇨🇳', exchangeRate: 1.53),
-    CurrencyInfo(code: 'THB', symbol: '฿', name: 'Thai Baht', flag: '🇹🇭', exchangeRate: 7.35),
-    CurrencyInfo(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', flag: '🇮🇩', exchangeRate: 3350.0),
+    CurrencyInfo(code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', flag: 'my', exchangeRate: 1.0),
+    CurrencyInfo(code: 'SGD', symbol: 'S\$', name: 'Singapore Dollar', flag: 'sg', exchangeRate: 0.29),
+    CurrencyInfo(code: 'USD', symbol: '\$', name: 'US Dollar', flag: 'us', exchangeRate: 0.21),
+    CurrencyInfo(code: 'EUR', symbol: '€', name: 'Euro', flag: 'de', exchangeRate: 0.20),
+    CurrencyInfo(code: 'GBP', symbol: '£', name: 'British Pound', flag: 'gb', exchangeRate: 0.17),
+    CurrencyInfo(code: 'JPY', symbol: '¥', name: 'Japanese Yen', flag: 'jp', exchangeRate: 32.5),
+    CurrencyInfo(code: 'CNY', symbol: '¥', name: 'Chinese Yuan', flag: 'cn', exchangeRate: 1.53),
+    CurrencyInfo(code: 'THB', symbol: '฿', name: 'Thai Baht', flag: 'th', exchangeRate: 7.38),
+    CurrencyInfo(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', flag: 'id', exchangeRate: 3450),
   ];
 
   // Base amounts in MYR
@@ -109,9 +109,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   final currency = currencies[index];
                   final isSelected = index == _selectedCurrencyIndex;
                   return ListTile(
-                    leading: Text(
-                      currency.flag,
-                      style: const TextStyle(fontSize: 28),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.asset(
+                        'assets/images/countryFlag/${currency.flag}.png',
+                        width: 32,
+                        height: 24,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 32,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(Icons.flag, size: 18),
+                          );
+                        },
+                      ),
                     ),
                     title: Text(
                       currency.code,
@@ -228,8 +244,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 2,
                         ),
                         image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://api.dicebear.com/7.x/avataaars/png?seed=banking',
+                          image: AssetImage(
+                            'assets/images/profile.jpg',
                           ),
                           fit: BoxFit.cover,
                         ),
@@ -249,9 +265,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            selectedCurrency.flag,
-                            style: const TextStyle(fontSize: 18),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: Image.asset(
+                              'assets/images/countryFlag/${selectedCurrency.flag}.png',
+                              width: 24,
+                              height: 18,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 24,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: const Icon(Icons.flag, size: 14),
+                                );
+                              },
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Text(
