@@ -105,6 +105,16 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedCurrencyIndex = 0;
   bool _isBalanceHidden = false;
 
+  // Carousel state
+  final PageController _carouselController = PageController();
+  int _currentCarouselIndex = 0;
+
+  @override
+  void dispose() {
+    _carouselController.dispose();
+    super.dispose();
+  }
+
   CurrencyInfo get selectedCurrency => currencies[_selectedCurrencyIndex];
 
   String formatAmount(double amountMYR, {bool allowHide = true}) {
@@ -227,15 +237,15 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHeader(context),
             _buildQuickActions(context),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.sm),
 
             // Services row (small icons)
             _buildServicesRow(context),
 
             const SizedBox(height: AppSpacing.lg),
 
-            // News preview section
-            _buildNewsPreview(context),
+            // News carousel section
+            _buildNewsCarousel(context),
 
             const SizedBox(height: AppSpacing.lg),
 
@@ -493,19 +503,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 formatAmount(totalBalanceMYR),
                 style: const TextStyle(
-                  fontSize: 40,
+                  fontSize: 44,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                   letterSpacing: -1.5,
                 ),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              // Balance cards
-              OverlappingBalanceCards(
-                checkingBalance: formatAmount(checkingBalanceMYR),
-                savingsBalance: formatAmount(savingsBalanceMYR),
               ),
 
               const SizedBox(height: AppSpacing.md),
@@ -520,43 +522,97 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.screenPadding,
-        vertical: AppSpacing.lg,
+        vertical: AppSpacing.md,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          QuickActionButton(
+          _buildMainActionButton(
+            context,
             icon: Icons.swap_horiz,
             label: 'Transfer',
-            iconColor: AppColors.accent,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (context) => TransferScreen(
-                        // Pass current currency symbol
                         currencySymbol: selectedCurrency.symbol,
                       )));
             },
           ),
-          QuickActionButton(
+          _buildMainActionButton(
+            context,
             icon: Icons.arrow_downward,
             label: 'Receive',
-            iconColor: AppColors.positive,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (context) => ReceiveScreen(
-                        // Pass current currency symbol
                         currencySymbol: selectedCurrency.symbol,
                       )));
             },
           ),
-          QuickActionButton(
+          _buildMainActionButton(
+            context,
             icon: Icons.bar_chart,
             label: 'Analytics',
-            iconColor: AppColors.accentBlue,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (context) => const AnalyticsScreen()));
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.accent.withOpacity(0.15),
+                  AppColors.softPurple.withOpacity(0.3),
+                ],
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.accent.withOpacity(0.3),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.accent.withOpacity(0.2),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: AppColors.accent,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            label,
+            style: AppTextStyles.labelMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -573,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             icon: Icons.security,
             label: 'SecureTAC',
-            color: const Color(0xFF6C63FF),
+            color: AppColors.accent,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const SecureTacScreen()),
             ),
@@ -582,31 +638,32 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             icon: Icons.emoji_events,
             label: 'Rewards',
-            color: const Color(0xFFFFB300),
+            color: AppColors.accent,
             badge: '2.4k',
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const GamificationScreen()),
+              MaterialPageRoute(
+                  builder: (context) => const GamificationScreen()),
             ),
           ),
           _buildServiceIcon(
             context,
             icon: Icons.receipt_long,
             label: 'Bills',
-            color: const Color(0xFFE91E63),
+            color: AppColors.accent,
             onTap: () {},
           ),
           _buildServiceIcon(
             context,
             icon: Icons.phone_android,
             label: 'Top Up',
-            color: const Color(0xFF00BCD4),
+            color: AppColors.accent,
             onTap: () {},
           ),
           _buildServiceIcon(
             context,
             icon: Icons.more_horiz,
             label: 'More',
-            color: AppColors.textSecondary,
+            color: AppColors.accent,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const MoreScreen()),
             ),
@@ -646,7 +703,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   top: -4,
                   right: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.negative,
                       borderRadius: BorderRadius.circular(8),
@@ -677,26 +735,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNewsPreview(BuildContext context) {
-    final newsItems = [
-      {
-        'title': '🎉 Year-End Bonus: 5% Cashback',
-        'subtitle': 'Spend RM500+ this week and earn extra cashback!',
-        'time': '2h ago',
-        'isPromo': true,
-      },
-      {
-        'title': 'New Feature: Family Chain',
-        'subtitle': 'Monitor and protect your family\'s finances together.',
-        'time': '5h ago',
-        'isPromo': false,
-      },
-      {
-        'title': '⚠️ Security Alert',
-        'subtitle': 'We\'ve enhanced our fraud detection system.',
-        'time': '1d ago',
-        'isPromo': false,
-      },
+  Widget _buildNewsCarousel(BuildContext context) {
+    final banners = [
+      'assets/images/banner1.png',
+      'assets/images/banner2.png',
+      'assets/images/banner3.png',
     ];
 
     return Padding(
@@ -731,95 +774,102 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          ...newsItems.map((news) => _buildNewsItem(
-                context,
-                title: news['title'] as String,
-                subtitle: news['subtitle'] as String,
-                time: news['time'] as String,
-                isPromo: news['isPromo'] as bool,
-              )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNewsItem(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required String time,
-    required bool isPromo,
-  }) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => const NewsScreen()),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isPromo ? const Color(0xFFFFF8E1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isPromo ? const Color(0xFFFFE082) : Colors.grey.shade200,
+          SizedBox(
+            height: 160,
+            child: PageView.builder(
+              controller: _carouselController,
+              itemCount: banners.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentCarouselIndex = index;
+                });
+              },
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const NewsScreen()),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        banners[index],
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  AppColors.accent.withOpacity(0.8),
+                                  AppColors.softPurple,
+                                ],
+                              ),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.campaign,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Promo ${index + 1}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isPromo
-                    ? const Color(0xFFFFB300).withOpacity(0.15)
-                    : AppColors.accent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isPromo ? Icons.local_offer : Icons.article,
-                color: isPromo ? const Color(0xFFFFB300) : AppColors.accent,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+          const SizedBox(height: AppSpacing.sm),
+          // Carousel indicators
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              banners.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: _currentCarouselIndex == index ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _currentCarouselIndex == index
+                      ? AppColors.accent
+                      : AppColors.accent.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            Text(
-              time,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textLight,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
