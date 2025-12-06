@@ -45,6 +45,12 @@ dependencies:
   
   # Image picker for uploading QR code images
   image_picker: ^1.0.7
+  
+  # HTTP client for API calls
+  http: ^1.2.0
+  
+  # Markdown rendering for chat messages
+  flutter_markdown: ^0.7.4+3
 
 dev_dependencies:
   flutter_test:

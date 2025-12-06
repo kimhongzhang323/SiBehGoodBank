@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import '../constants/constants.dart';
+import '../services/ai_chat_service.dart';
 
 /// AI copilot surface that sits above the home page.
 /// Shows quick reasoning, tool choices, and a chat-style thread.
@@ -24,17 +26,37 @@ class _AiChatScreenState extends State<AiChatScreen> {
   double _soundLevel = 0.0;
   bool _useSimulatedVoice = true; // Use simulated voice for demo
   bool _showAttachmentMenu = false;
+  
+  // AI Chat Service for backend integration
+  late AiChatService _aiChatService;
+  bool _isAiProcessing = false;
+  bool _useAiBackend = true; // Toggle to enable/disable AI backend
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _aiChatService = AiChatService(userId: 'user-001');
+    _checkAiServiceHealth();
+  }
+
+  Future<void> _checkAiServiceHealth() async {
+    final isHealthy = await _aiChatService.checkHealth();
+    if (mounted) {
+      setState(() {
+        _useAiBackend = isHealthy;
+      });
+      if (!isHealthy) {
+        debugPrint('AI backend not available, using local fallback');
+      }
+    }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _speech.stop();
+    _aiChatService.dispose();
     super.dispose();
   }
 
@@ -283,11 +305,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _processAgentResponse(String userMessage) async {
-    // Simulate agent planning (internal - not shown to user)
-    await Future.delayed(const Duration(milliseconds: 500));
-
     final lowerMessage = userMessage.toLowerCase();
 
+    // Check for specific UI-driven flows first (transfer, withdrawal, bill payment)
+    // These have custom UI components that are better handled locally
+    
     // Check for bill payment FIRST (before transfer, since 'payment' might match other keywords)
     if (lowerMessage.contains('bill') || 
         (lowerMessage.contains('payment') && !lowerMessage.contains('transfer')) ||
@@ -383,6 +405,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _scrollToBottom();
 
     } else {
+      // For all other queries, use the AI backend if available
+      await _sendToAiBackend(userMessage);
+    }
+  }
+
+  /// Send message to AI backend and handle response
+  Future<void> _sendToAiBackend(String userMessage) async {
+    if (!_useAiBackend) {
+      // Fallback response when AI backend is not available
       setState(() {
         _messages.add({
           'speaker': 'Agent',
@@ -391,6 +422,62 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       });
       _scrollToBottom();
+      return;
+    }
+
+    // Show typing indicator
+    setState(() {
+      _isAiProcessing = true;
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '🤔 Thinking...',
+        'alignment': Alignment.centerLeft,
+        'isProcessing': true,
+      });
+    });
+    _scrollToBottom();
+
+    try {
+      final response = await _aiChatService.sendMessage(userMessage);
+      
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message': response.message,
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      }
+    } on AiChatException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message': '❌ Sorry, I encountered an error: ${e.message}. Please try again.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message': 'I can help you with transfers, cash withdrawals, bill payments, and more. Try asking "Transfer money", "Cash withdrawal", or "Bill payment".',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      }
     }
   }
 
@@ -2818,6 +2905,7 @@ class _MessageBubble extends StatelessWidget {
     required this.alignment,
     required this.bubbleColor,
     required this.textColor,
+    this.useMarkdown = true,
   });
 
   final String speaker;
@@ -2825,9 +2913,13 @@ class _MessageBubble extends StatelessWidget {
   final Alignment alignment;
   final Color bubbleColor;
   final Color textColor;
+  final bool useMarkdown;
 
   @override
   Widget build(BuildContext context) {
+    // Determine if message is from Agent (left aligned) for markdown rendering
+    final isAgentMessage = alignment == Alignment.centerLeft;
+    
     return Align(
       alignment: alignment,
       child: ConstrainedBox(
@@ -2852,14 +2944,104 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: textColor,
-                    height: 1.4,
+                // Use Markdown for agent messages, plain text for user messages
+                if (useMarkdown && isAgentMessage)
+                  MarkdownBody(
+                    data: message,
+                    selectable: true,
+                    shrinkWrap: true,
+                    styleSheet: MarkdownStyleSheet(
+                      p: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        height: 1.4,
+                      ),
+                      strong: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      em: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      code: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.accent,
+                        backgroundColor: AppColors.accent.withOpacity(0.1),
+                        fontFamily: 'monospace',
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      blockquote: TextStyle(
+                        fontSize: 15,
+                        color: textColor.withOpacity(0.8),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      blockquoteDecoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: AppColors.accent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      blockquotePadding: const EdgeInsets.only(left: 12),
+                      listBullet: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                      ),
+                      h1: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      h2: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      h3: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      tableHead: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      tableBody: TextStyle(
+                        fontSize: 14,
+                        color: textColor,
+                      ),
+                      tableBorder: TableBorder.all(
+                        color: textColor.withOpacity(0.3),
+                        width: 1,
+                      ),
+                      tableCellsPadding: const EdgeInsets.all(8),
+                      horizontalRuleDecoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: textColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: textColor,
+                      height: 1.4,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
