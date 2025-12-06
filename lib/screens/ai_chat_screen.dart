@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
@@ -160,6 +161,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _handleUserMessage('Cash withdrawal');
   }
 
+  void _handleQuickBillPayment() {
+    // Trigger bill payment flow
+    _handleUserMessage('Bill payment');
+  }
+
   Future<void> _startListening(Function(String) onResult) async {
     // Request microphone permission first
     final status = await Permission.microphone.request();
@@ -282,13 +288,44 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     final lowerMessage = userMessage.toLowerCase();
 
-    // Check if message contains transfer keywords in any language
-    if (lowerMessage.contains('transfer') || 
+    // Check for bill payment FIRST (before transfer, since 'payment' might match other keywords)
+    if (lowerMessage.contains('bill') || 
+        (lowerMessage.contains('payment') && !lowerMessage.contains('transfer')) ||
+        lowerMessage.contains('pay bill') ||
+        lowerMessage.contains('账单') ||
+        lowerMessage.contains('付款') ||
+        lowerMessage.contains('缴费')) {
+      
+      // Step 1: Show processing
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '🔄 Processing bill payment request...',
+          'alignment': Alignment.centerLeft,
+          'isProcessing': true,
+        });
+      });
+      _scrollToBottom();
+
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      // Step 2: Show bill type selection
+      setState(() {
+        _messages.removeLast(); // Remove processing message
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '✓ Please select the bill type you want to pay:',
+          'alignment': Alignment.centerLeft,
+          'showBillTypeSelection': true,
+        });
+      });
+      _scrollToBottom();
+
+    } else if (lowerMessage.contains('transfer') || 
         lowerMessage.contains('send') ||
         lowerMessage.contains('转账') ||
         lowerMessage.contains('转') ||
-        lowerMessage.contains('汇款') ||
-        lowerMessage.contains('pay')) {
+        lowerMessage.contains('汇款')) {
       
       // Step 1: Show processing
       setState(() {
@@ -349,7 +386,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       setState(() {
         _messages.add({
           'speaker': 'Agent',
-          'message': 'I can help you with transfers, cash withdrawals, and more. Try asking "Transfer money" or "Cash withdrawal".',
+          'message': 'I can help you with transfers, cash withdrawals, bill payments, and more. Try asking "Transfer money", "Cash withdrawal", or "Bill payment".',
           'alignment': Alignment.centerLeft,
         });
       });
@@ -737,6 +774,159 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
+  void _handleBillTypeSelection(String billType) async {
+    // Generate random bill amount
+    final random = Random();
+    final billAmount = (random.nextInt(400) + 50).toDouble(); // Random amount between RM50-RM450
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '📝 Here is your $billType invoice:',
+        'alignment': Alignment.centerLeft,
+        'showInvoice': true,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '💵 Total amount due: RM ${billAmount.toStringAsFixed(2)}',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': 'Please enter the amount you want to pay:',
+        'alignment': Alignment.centerLeft,
+        'showBillAmountInput': true,
+        'selectedBillType': billType,
+        'billAmount': billAmount,
+      });
+    });
+    _scrollToBottom();
+  }
+
+  void _handleBillPayment(String amount, String billType, double totalBillAmount) async {
+    final paymentAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '🔐 Verifying fingerprint...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '📸 Verifying face...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    setState(() {
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '✓ Verification successful! Processing payment...',
+        'alignment': Alignment.centerLeft,
+      });
+    });
+    _scrollToBottom();
+
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Check if payment is complete
+    final remaining = totalBillAmount - paymentAmount;
+
+    if (remaining > 0.01) {
+      // Not fully paid - show remaining balance
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '⚠️ Payment received: RM ${paymentAmount.toStringAsFixed(2)}',
+          'alignment': Alignment.centerLeft,
+        });
+      });
+      _scrollToBottom();
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '💵 Remaining balance: RM ${remaining.toStringAsFixed(2)}',
+          'alignment': Alignment.centerLeft,
+        });
+      });
+      _scrollToBottom();
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Ask for remaining payment
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': 'Please pay the remaining amount:',
+          'alignment': Alignment.centerLeft,
+          'showBillAmountInput': true,
+          'selectedBillType': billType,
+          'billAmount': remaining,
+        });
+      });
+      _scrollToBottom();
+    } else {
+      // Fully paid - show success
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '✓ Payment completed successfully!',
+          'alignment': Alignment.centerLeft,
+          'showInvoice': true,
+        });
+      });
+      _scrollToBottom();
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Generate bill payment receipt
+      final now = DateTime.now();
+
+      setState(() {
+        _messages.add({
+          'speaker': 'Agent',
+          'message': '📄 Payment receipt:',
+          'alignment': Alignment.centerLeft,
+          'showBillReceipt': true,
+          'billData': {
+            'billType': billType,
+            'amount': totalBillAmount,
+            'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
+            'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+            'transactionId': 'BP${now.millisecondsSinceEpoch.toString().substring(7)}',
+            'status': 'Paid',
+          },
+        });
+      });
+      _scrollToBottom();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1085,6 +1275,126 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
+                      } else if (msg['showBillTypeSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillTypeGrid(onBillTypeSelected: _handleBillTypeSelection),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillAmountInput'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillAmountInput(
+                              billType: msg['selectedBillType'],
+                              totalAmount: msg['billAmount'],
+                              onSubmit: (amount) => _handleBillPayment(amount, msg['selectedBillType'], msg['billAmount']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillReceipt'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillPaymentReceipt(
+                              billData: msg['billData'],
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillTypeSelection'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillTypeGrid(onBillTypeSelected: _handleBillTypeSelection),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillAmountInput'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillAmountInput(
+                              billType: msg['selectedBillType'],
+                              totalAmount: msg['billAmount'],
+                              onSubmit: (amount) => _handleBillPayment(amount, msg['selectedBillType'], msg['billAmount']),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
+                      } else if (msg['showBillReceipt'] == true) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _MessageBubble(
+                                speaker: msg['speaker'],
+                                message: msg['message'],
+                                alignment: msg['alignment'],
+                                bubbleColor: AppColors.glassWhiteLight,
+                                textColor: AppColors.textPrimary,
+                              ),
+                            ),
+                            _BillPaymentReceipt(
+                              billData: msg['billData'],
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        );
                       } else {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -1110,31 +1420,52 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   horizontal: AppSpacing.md,
                   vertical: AppSpacing.sm,
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _handleQuickTransfer,
-                        icon: const Icon(Icons.send, size: 18),
-                        label: const Text('Transfer'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _handleQuickTransfer,
+                            icon: const Icon(Icons.send, size: 18),
+                            label: const Text('Transfer'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _handleQuickCashWithdrawal,
+                            icon: const Icon(Icons.atm, size: 18),
+                            label: const Text('Cash Withdrawal'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accentBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
+                    const SizedBox(height: AppSpacing.sm),
+                    SizedBox(
+                      width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _handleQuickCashWithdrawal,
-                        icon: const Icon(Icons.atm, size: 18),
-                        label: const Text('Cash Withdrawal'),
+                        onPressed: _handleQuickBillPayment,
+                        icon: const Icon(Icons.receipt_long, size: 18),
+                        label: const Text('Bill Payment'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accentBlue,
+                          backgroundColor: AppColors.positive,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                           shape: RoundedRectangleBorder(
@@ -4945,178 +5276,6 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Biometric verification sheet for AI chat screen
-/// Shows animated Face ID and Fingerprint verification
-class _AiBiometricSheet extends StatefulWidget {
-  final VoidCallback onSuccess;
-  final VoidCallback onCancel;
-
-  const _AiBiometricSheet({
-    required this.onSuccess,
-    required this.onCancel,
-  });
-
-  @override
-  State<_AiBiometricSheet> createState() => _AiBiometricSheetState();
-}
-
-class _AiBiometricSheetState extends State<_AiBiometricSheet> {
-  int _stage = 0;
-  String _statusText = 'Scanning Face ID...';
-  bool _isVerifying = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _startSimulation();
-  }
-
-  void _startSimulation() async {
-    // Stage 0: Face ID
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      _stage = 1;
-      _statusText = 'Place Finger on Sensor...';
-    });
-    
-    // Stage 1: Fingerprint
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      _stage = 2;
-      _statusText = 'Verified';
-      _isVerifying = false;
-    });
-    
-    // Short delay before calling success
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    widget.onSuccess();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Title
-          Text(
-            'Transaction Verification',
-            style: AppTextStyles.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Please verify to authorize this transaction',
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 32),
-          
-          // Biometric icons with animation
-          SizedBox(
-            height: 120,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildBiometricIcon(
-                  Icons.face,
-                  isActive: _stage == 0,
-                  isDone: _stage > 0,
-                ),
-                Container(
-                  width: 40,
-                  height: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  color: AppColors.glassBorder,
-                ),
-                _buildBiometricIcon(
-                  Icons.fingerprint,
-                  isActive: _stage == 1,
-                  isDone: _stage > 1,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Status text
-          Text(
-            _statusText,
-            style: AppTextStyles.bodyLarge.copyWith(
-              color: _stage == 2 ? AppColors.positive : AppColors.accent,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 32),
-          
-          // Cancel button (only show while verifying)
-          if (_isVerifying)
-            TextButton(
-              onPressed: widget.onCancel,
-              child: Text(
-                'Cancel',
-                style: AppTextStyles.buttonMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBiometricIcon(IconData icon, {required bool isActive, required bool isDone}) {
-    Color color = isDone
-        ? AppColors.positive
-        : (isActive ? AppColors.accent : AppColors.textLight.withOpacity(0.3));
-    
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: isActive ? 80 : 60,
-      height: isActive ? 80 : 60,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        shape: BoxShape.circle,
-        border: Border.all(color: color, width: 2),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                )
-              ]
-            : [],
-      ),
-      child: Icon(
-        isDone ? Icons.check : icon,
-        color: color,
-        size: isActive ? 40 : 30,
       ),
     );
   }
