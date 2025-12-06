@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
+import '../services/receipt_services.dart';
 
-class TransferReceiptScreen extends StatelessWidget {
+class TransferReceiptScreen extends StatefulWidget {
   final String amount;
   final String currencySymbol;
   final String recipientName;
   final String recipientAccount;
-  final String? description;
   final bool isReceiving;
-  final VoidCallback? onDone;
 
   const TransferReceiptScreen({
     super.key,
@@ -17,52 +16,92 @@ class TransferReceiptScreen extends StatelessWidget {
     required this.currencySymbol,
     required this.recipientName,
     required this.recipientAccount,
-    this.description,
     this.isReceiving = false,
-    this.onDone,
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Manual date formatting
-    final now = DateTime.now();
-    final dateStr = "${_getMonth(now.month)} ${now.day}, ${now.year}";
-    final timeStr =
-        "${_formatHour(now.hour)}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
-    final refId = 'REF-${now.millisecondsSinceEpoch.toString().substring(5)}';
+  State<TransferReceiptScreen> createState() => _TransferReceiptScreenState();
+}
 
-    // UI Configuration based on type
-    final statusColor = isReceiving ? AppColors.positive : AppColors.accent;
-    final titleText = isReceiving ? 'Money Received' : 'Transfer Successful';
-    final amountSign = isReceiving ? '+' : '-';
+class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
+  // Manual date formatting
+  final now = DateTime.now();
+  late String dateStr;
+  late String timeStr;
+  late String refId;
+
+  bool _isSharing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    dateStr = "${_getMonth(now.month)} ${now.day}, ${now.year}";
+    timeStr =
+        "${_formatHour(now.hour)}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
+    refId = 'REF-${now.millisecondsSinceEpoch.toString().substring(5)}';
+  }
+
+  Future<void> _handleViewReceipt() async {
+    setState(() => _isSharing = true);
+
+    try {
+      await ReceiptService.generateAndShowReceipt(
+        amount: widget.amount,
+        currencySymbol: widget.currencySymbol,
+        recipientName: widget.recipientName,
+        recipientAccount: widget.recipientAccount,
+        dateStr: dateStr,
+        timeStr: timeStr,
+        refId: refId,
+        isReceiving: widget.isReceiving,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to generate receipt: $e"),
+            backgroundColor: AppColors.negative,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor =
+        widget.isReceiving ? AppColors.positive : AppColors.accent;
+    final titleText =
+        widget.isReceiving ? 'Money Received' : 'Transfer Successful';
+    final amountSign = widget.isReceiving ? '+' : '-';
     final amountColor =
-        isReceiving ? AppColors.positive : AppColors.textPrimary;
-    final userLabel = isReceiving ? 'From' : 'To';
+        widget.isReceiving ? AppColors.positive : AppColors.textPrimary;
+    final userLabel = widget.isReceiving ? 'From' : 'To';
 
     return Scaffold(
       body: Stack(
         children: [
-          // Background
           const HolographicBackground(
             child: SizedBox.expand(),
           ),
-
           SafeArea(
             child: Column(
               children: [
                 const Spacer(),
-
-                // Receipt Card
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenPadding),
                   child: GlassCard(
                     borderRadius: 24,
                     padding: const EdgeInsets.all(32),
+                    backgroundColor: Colors.white, // <--- CHANGED: Set to solid white
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Success Icon (Dynamic Color)
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -70,77 +109,57 @@ class TransferReceiptScreen extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            isReceiving
+                            widget.isReceiving
                                 ? Icons.download_rounded
                                 : Icons.check_rounded,
                             color: statusColor,
                             size: 40,
                           ),
                         ),
-
                         const SizedBox(height: 24),
-
-                        // Dynamic Title
                         Text(
                           titleText,
                           style: AppTextStyles.headlineSmall,
                         ),
-
                         const SizedBox(height: 8),
-
-// Dynamic Amount with Currency Symbol
                         Text(
-                          '$amountSign$currencySymbol $amount', // Added space here
+                          '$amountSign${widget.currencySymbol} ${widget.amount}',
                           style: AppTextStyles.amountLarge.copyWith(
                             color: amountColor,
                           ),
                         ),
-
                         const SizedBox(height: 32),
                         const Divider(color: AppColors.glassBorder),
                         const SizedBox(height: 24),
-
-                        // Details
-                        _buildRow(userLabel, recipientName),
+                        _buildRow(userLabel, widget.recipientName),
                         const SizedBox(height: 16),
-                        _buildRow('Account', recipientAccount),
+                        _buildRow('Account', widget.recipientAccount),
                         const SizedBox(height: 16),
-                        if (description != null && description!.isNotEmpty) ...[
-                          _buildRow('Description', description!),
-                          const SizedBox(height: 16),
-                        ],
                         _buildRow('Date', '$dateStr • $timeStr'),
                         const SizedBox(height: 16),
                         _buildRow('Ref ID', refId),
-
                         const SizedBox(height: 32),
-
-                        // Action Buttons
                         Row(
                           children: [
                             Expanded(
                               child: SecondaryButton(
-                                text: 'Share',
-                                icon: Icons.share_outlined,
-                                onPressed: () {},
+                                text: 'Receipt',
+                                icon: Icons.picture_as_pdf,
+                                isLoading: _isSharing,
+                                onPressed: _isSharing ? null : _handleViewReceipt,
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: PrimaryButton(
                                 text: 'Done',
-                                backgroundColor: isReceiving
+                                backgroundColor: widget.isReceiving
                                     ? AppColors.positive
                                     : AppColors.accent,
                                 textColor: Colors.white,
                                 onPressed: () {
-                                  // If onDone callback provided, use it to navigate back to home
-                                  if (onDone != null) {
-                                    Navigator.of(context).popUntil((route) => route.isFirst);
-                                    onDone!();
-                                  } else {
-                                    Navigator.of(context).popUntil((route) => route.isFirst);
-                                  }
+                                  Navigator.of(context)
+                                      .popUntil((route) => route.isFirst);
                                 },
                               ),
                             ),
@@ -150,7 +169,6 @@ class TransferReceiptScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 const Spacer(),
               ],
             ),
@@ -182,18 +200,8 @@ class TransferReceiptScreen extends StatelessWidget {
 
   String _getMonth(int month) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
   }

@@ -3,29 +3,14 @@ import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'transfer_receipt_screen.dart';
 
-// Recent contact model
-class RecentContact {
-  final String name;
-  final String accountNumber;
-  final String avatarColor;
-  final IconData icon;
-
-  const RecentContact({
-    required this.name,
-    required this.accountNumber,
-    required this.avatarColor,
-    this.icon = Icons.person,
-  });
-}
-
 class TransferScreen extends StatefulWidget {
   final String currencySymbol;
-  final VoidCallback? onBackToHome;
+  final VoidCallback? onBackToHome; // Added parameter
 
   const TransferScreen({
     super.key,
     required this.currencySymbol,
-    this.onBackToHome,
+    this.onBackToHome, // Added to constructor
   });
 
   @override
@@ -34,99 +19,7 @@ class TransferScreen extends StatefulWidget {
 
 class _TransferScreenState extends State<TransferScreen> {
   final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
   bool _isLoading = false;
-  
-  // Selected recipient
-  RecentContact? _selectedRecipient;
-  
-  // Recent contacts list
-  static const List<RecentContact> _recentContacts = [
-    RecentContact(
-      name: 'John Doe',
-      accountNumber: '**** 4589',
-      avatarColor: 'blue',
-    ),
-    RecentContact(
-      name: 'Sarah Lim',
-      accountNumber: '**** 7823',
-      avatarColor: 'pink',
-    ),
-    RecentContact(
-      name: 'Ahmad Razak',
-      accountNumber: '**** 1256',
-      avatarColor: 'green',
-    ),
-    RecentContact(
-      name: 'Michelle Tan',
-      accountNumber: '**** 9034',
-      avatarColor: 'purple',
-    ),
-    RecentContact(
-      name: 'David Wong',
-      accountNumber: '**** 5567',
-      avatarColor: 'orange',
-    ),
-    RecentContact(
-      name: 'Priya Kumar',
-      accountNumber: '**** 3321',
-      avatarColor: 'teal',
-    ),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    // Set default recipient
-    _selectedRecipient = _recentContacts.first;
-    // Set default description
-    _descriptionController.text = 'Transfer';
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Color _getAvatarColor(String colorName) {
-    switch (colorName) {
-      case 'blue':
-        return AppColors.pastelBlue;
-      case 'pink':
-        return const Color(0xFFFFD6E0);
-      case 'green':
-        return const Color(0xFFD4EDDA);
-      case 'purple':
-        return AppColors.softPurple;
-      case 'orange':
-        return const Color(0xFFFFE5D0);
-      case 'teal':
-        return const Color(0xFFD0F0F0);
-      default:
-        return AppColors.pastelBlue;
-    }
-  }
-
-  Color _getIconColor(String colorName) {
-    switch (colorName) {
-      case 'blue':
-        return AppColors.accentBlue;
-      case 'pink':
-        return const Color(0xFFE91E63);
-      case 'green':
-        return const Color(0xFF28A745);
-      case 'purple':
-        return AppColors.accent;
-      case 'orange':
-        return const Color(0xFFFF9800);
-      case 'teal':
-        return const Color(0xFF009688);
-      default:
-        return AppColors.accentBlue;
-    }
-  }
 
   void _initiateTransfer() {
     // 1. Error Handling: Empty Input
@@ -160,21 +53,14 @@ class _TransferScreenState extends State<TransferScreen> {
   void _completeTransfer() {
     setState(() => _isLoading = false);
 
-    final recipient = _selectedRecipient ?? _recentContacts.first;
-    final description = _descriptionController.text.isEmpty 
-        ? 'Transfer' 
-        : _descriptionController.text;
-
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => TransferReceiptScreen(
           amount: _amountController.text,
           currencySymbol: widget.currencySymbol,
-          recipientName: recipient.name,
-          recipientAccount: recipient.accountNumber,
-          description: description,
+          recipientName: 'John Doe',
+          recipientAccount: '**** 4589',
           isReceiving: false,
-          onDone: widget.onBackToHome,
         ),
       ),
     );
@@ -199,7 +85,14 @@ class _TransferScreenState extends State<TransferScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            // Check if we are in RootShell (IndexedStack) or standalone
+            if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text('Transfer Money', style: AppTextStyles.headlineSmall),
         centerTitle: true,
@@ -231,123 +124,28 @@ class _TransferScreenState extends State<TransferScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            
-            // Description field
-            const Text('Description', style: AppTextStyles.labelLarge),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _descriptionController,
-              style: AppTextStyles.bodyLarge,
-              decoration: InputDecoration(
-                hintText: 'What is this for?',
-                hintStyle: AppTextStyles.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.softPurple),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide:
-                      const BorderSide(color: AppColors.accent, width: 2),
-                ),
-                prefixIcon: const Icon(Icons.note_outlined, color: AppColors.textSecondary),
-              ),
-            ),
-            
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.xl),
             const Text('To', style: AppTextStyles.labelLarge),
             const SizedBox(height: AppSpacing.sm),
-            
-            // Selected recipient card
-            if (_selectedRecipient != null)
-              GestureDetector(
-                onTap: () => _showRecipientSelector(),
-                child: GlassCard(
-                  child: Row(
+            const GlassCard(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.pastelBlue,
+                    child: Icon(Icons.person, color: AppColors.accentBlue),
+                  ),
+                  SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: _getAvatarColor(_selectedRecipient!.avatarColor),
-                        child: Icon(Icons.person, color: _getIconColor(_selectedRecipient!.avatarColor)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_selectedRecipient!.name, style: AppTextStyles.titleMedium),
-                            Text(_selectedRecipient!.accountNumber, style: AppTextStyles.bodySmall),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                      Text('John Doe', style: AppTextStyles.titleMedium),
+                      Text('**** 4589', style: AppTextStyles.bodySmall),
                     ],
                   ),
-                ),
-              ),
-            
-            const SizedBox(height: AppSpacing.lg),
-            
-            // Recent transfers section
-            const Text('Recent Transfers', style: AppTextStyles.labelLarge),
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _recentContacts.length,
-                itemBuilder: (context, index) {
-                  final contact = _recentContacts[index];
-                  final isSelected = _selectedRecipient?.name == contact.name;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedRecipient = contact;
-                      });
-                    },
-                    child: Container(
-                      width: 80,
-                      margin: const EdgeInsets.only(right: AppSpacing.sm),
-                      child: Column(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: isSelected 
-                                  ? Border.all(color: AppColors.accent, width: 3)
-                                  : null,
-                            ),
-                            child: CircleAvatar(
-                              radius: 28,
-                              backgroundColor: _getAvatarColor(contact.avatarColor),
-                              child: Icon(
-                                Icons.person, 
-                                color: _getIconColor(contact.avatarColor),
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            contact.name.split(' ').first,
-                            style: AppTextStyles.bodySmall.copyWith(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? AppColors.accent : AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                ],
               ),
             ),
-            
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.xxl),
             PrimaryButton(
               text: 'Transfer',
               isLoading: _isLoading,
@@ -355,56 +153,6 @@ class _TransferScreenState extends State<TransferScreen> {
               backgroundColor: AppColors.accent,
               textColor: Colors.white,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showRecipientSelector() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(AppSpacing.screenPadding),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const Text('Select Recipient', style: AppTextStyles.headlineSmall),
-            const SizedBox(height: AppSpacing.lg),
-            ..._recentContacts.map((contact) => ListTile(
-              leading: CircleAvatar(
-                backgroundColor: _getAvatarColor(contact.avatarColor),
-                child: Icon(Icons.person, color: _getIconColor(contact.avatarColor)),
-              ),
-              title: Text(contact.name, style: AppTextStyles.titleMedium),
-              subtitle: Text(contact.accountNumber, style: AppTextStyles.bodySmall),
-              trailing: _selectedRecipient?.name == contact.name
-                  ? const Icon(Icons.check_circle, color: AppColors.accent)
-                  : null,
-              onTap: () {
-                setState(() {
-                  _selectedRecipient = contact;
-                });
-                Navigator.pop(context);
-              },
-            )),
-            const SizedBox(height: AppSpacing.lg),
           ],
         ),
       ),
@@ -427,26 +175,17 @@ class _TransferScreenState extends State<TransferScreen> {
         onSuccess: onAuthenticated,
         onUsePassword: onPasswordSelected,
       ),
-    ).then((_) {
-      if (mounted && _isLoading) {
-        // If sheet dismissed without explicit action, stop loading is handled
-        // by specific callbacks, but purely safe guard here isn't easy without state flags.
-        // Reliance on explicit Cancel/Confirm logic below is safer.
-      }
-    });
+    );
   }
 
   void _showPasswordPrompt(BuildContext context, String userRole) {
     final passwordController = TextEditingController();
-    // Using a local variable for error text inside the dialog
     String? errorText;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        // StatefulBuilder allows us to update the Dialog UI (error message)
-        // without rebuilding the whole screen
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
             title: Text('$userRole Password'),
@@ -459,7 +198,7 @@ class _TransferScreenState extends State<TransferScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     hintText: 'Enter password',
-                    errorText: errorText, // Displays error if set
+                    errorText: errorText,
                   ),
                 ),
               ],
@@ -468,7 +207,6 @@ class _TransferScreenState extends State<TransferScreen> {
               TextButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  // Stop loading on cancel
                   setState(() => _isLoading = false);
                 },
                 child: const Text('Cancel'),
@@ -477,7 +215,6 @@ class _TransferScreenState extends State<TransferScreen> {
                 onPressed: () {
                   final password = passwordController.text;
 
-                  // 3. Password Validation Logic
                   if (password.isEmpty) {
                     setDialogState(() {
                       errorText = 'Password cannot be empty';
@@ -491,7 +228,6 @@ class _TransferScreenState extends State<TransferScreen> {
                     return;
                   }
 
-                  // If valid
                   Navigator.pop(ctx);
                   _completeTransfer();
                 },
@@ -505,7 +241,6 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 }
 
-// Reusable Biometric Sheet
 class _BiometricSheet extends StatefulWidget {
   final String role;
   final VoidCallback onSuccess;
