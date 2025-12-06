@@ -7,6 +7,7 @@ import 'ai_chat_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'transfer_screen.dart';
+import 'receive_screen.dart';
 import 'settings_screen.dart';
 
 // Currency data model
@@ -37,15 +38,56 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Available currencies
   static const List<CurrencyInfo> currencies = [
-    CurrencyInfo(code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', flag: 'my', exchangeRate: 1.0),
-    CurrencyInfo(code: 'SGD', symbol: 'S\$', name: 'Singapore Dollar', flag: 'sg', exchangeRate: 0.29),
-    CurrencyInfo(code: 'USD', symbol: '\$', name: 'US Dollar', flag: 'us', exchangeRate: 0.21),
-    CurrencyInfo(code: 'EUR', symbol: '€', name: 'Euro', flag: 'de', exchangeRate: 0.20),
-    CurrencyInfo(code: 'GBP', symbol: '£', name: 'British Pound', flag: 'gb', exchangeRate: 0.17),
-    CurrencyInfo(code: 'JPY', symbol: '¥', name: 'Japanese Yen', flag: 'jp', exchangeRate: 32.5),
-    CurrencyInfo(code: 'CNY', symbol: '¥', name: 'Chinese Yuan', flag: 'cn', exchangeRate: 1.53),
-    CurrencyInfo(code: 'THB', symbol: '฿', name: 'Thai Baht', flag: 'th', exchangeRate: 7.38),
-    CurrencyInfo(code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', flag: 'id', exchangeRate: 3450),
+    CurrencyInfo(
+        code: 'MYR',
+        symbol: 'RM',
+        name: 'Malaysian Ringgit',
+        flag: 'my',
+        exchangeRate: 1.0),
+    CurrencyInfo(
+        code: 'SGD',
+        symbol: 'S\$',
+        name: 'Singapore Dollar',
+        flag: 'sg',
+        exchangeRate: 0.29),
+    CurrencyInfo(
+        code: 'USD',
+        symbol: '\$',
+        name: 'US Dollar',
+        flag: 'us',
+        exchangeRate: 0.21),
+    CurrencyInfo(
+        code: 'EUR', symbol: '€', name: 'Euro', flag: 'de', exchangeRate: 0.20),
+    CurrencyInfo(
+        code: 'GBP',
+        symbol: '£',
+        name: 'British Pound',
+        flag: 'gb',
+        exchangeRate: 0.17),
+    CurrencyInfo(
+        code: 'JPY',
+        symbol: '¥',
+        name: 'Japanese Yen',
+        flag: 'jp',
+        exchangeRate: 32.5),
+    CurrencyInfo(
+        code: 'CNY',
+        symbol: '¥',
+        name: 'Chinese Yuan',
+        flag: 'cn',
+        exchangeRate: 1.53),
+    CurrencyInfo(
+        code: 'THB',
+        symbol: '฿',
+        name: 'Thai Baht',
+        flag: 'th',
+        exchangeRate: 7.38),
+    CurrencyInfo(
+        code: 'IDR',
+        symbol: 'Rp',
+        name: 'Indonesian Rupiah',
+        flag: 'id',
+        exchangeRate: 3450),
   ];
 
   // Base amounts in MYR
@@ -68,9 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final converted = amountMYR * selectedCurrency.exchangeRate;
     final formatted = converted.toStringAsFixed(2).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
     return '${selectedCurrency.symbol}$formatted';
   }
 
@@ -144,7 +186,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     trailing: isSelected
-                        ? const Icon(Icons.check_circle, color: AppColors.positive)
+                        ? const Icon(Icons.check_circle,
+                            color: AppColors.positive)
                         : null,
                     onTap: () {
                       setState(() {
@@ -179,12 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Holographic header with balance
             _buildHeader(context),
-
-            // Quick action buttons
             _buildQuickActions(context),
-
             const SizedBox(height: AppSpacing.lg),
 
             // Multi-account cards section
@@ -194,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Recent activity section
             _buildRecentActivity(context),
-
             const SizedBox(height: AppSpacing.xl),
           ],
         ),
@@ -260,16 +298,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+
                     // Center: Currency Switcher (absolute center of screen)
                     Center(
                       child: GestureDetector(
                         onTap: () => _showCurrencyPicker(context),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.5)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -313,6 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+
                     // Right: Notification and Settings buttons
                     Positioned(
                       right: 0,
@@ -326,7 +368,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => const NotificationsScreen(),
+                                  builder: (context) =>
+                                      const NotificationsScreen(),
                                 ),
                               );
                             },
@@ -432,6 +475,43 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               const SizedBox(height: AppSpacing.sm),
+              // ... Balance amount Text widget follows here
+
+              // Total Balance label with hide/show toggle
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Balance',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isBalanceHidden = !_isBalanceHidden;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _isBalanceHidden
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: AppSpacing.sm),
 
               // Balance amount
               Text(
@@ -474,31 +554,32 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Transfer',
             iconColor: AppColors.accent,
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const TransferScreen(),
-                ),
-              );
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => TransferScreen(
+                        // Pass current currency symbol
+                        currencySymbol: selectedCurrency.symbol,
+                      )));
             },
           ),
           QuickActionButton(
-            icon: Icons.ac_unit,
-            label: 'Freeze',
-            iconColor: AppColors.accentBlue,
+            icon: Icons.arrow_downward,
+            label: 'Receive',
+            iconColor: AppColors.positive,
             onTap: () {
-              // Handle freeze
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => ReceiveScreen(
+                        // Pass current currency symbol
+                        currencySymbol: selectedCurrency.symbol,
+                      )));
             },
           ),
           QuickActionButton(
             icon: Icons.bar_chart,
             label: 'Analytics',
-            iconColor: AppColors.positive,
+            iconColor: AppColors.accentBlue,
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const AnalyticsScreen(),
-                ),
-              );
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const AnalyticsScreen()));
             },
           ),
           QuickActionButton(
@@ -506,11 +587,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'More',
             iconColor: AppColors.textSecondary,
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const AiChatScreen(),
-                ),
-              );
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const AiChatScreen()));
             },
           ),
         ],
@@ -630,9 +708,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ActivityList(
           title: 'Recent Activity',
           activities: activities,
-          onSeeAllTap: () {
-            // Navigate to full activity list
-          },
+          onSeeAllTap: () {},
         ),
       ),
     );
