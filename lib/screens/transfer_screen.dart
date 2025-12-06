@@ -121,62 +121,62 @@ class _TransferScreenState extends State<TransferScreen> {
   static const List<Map<String, dynamic>> _malaysianBanks = [
     {
       'name': 'Maybank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/may.png',
       'color': Color(0xFFFFC107)
     },
     {
       'name': 'CIMB Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/cimb.png',
       'color': Color(0xFFE91E63)
     },
     {
       'name': 'Public Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/public.png',
       'color': Color(0xFF4CAF50)
     },
     {
       'name': 'RHB Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/RHB.png',
       'color': Color(0xFF2196F3)
     },
     {
       'name': 'Hong Leong Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/hl1.png',
       'color': Color(0xFF9C27B0)
     },
     {
       'name': 'AmBank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/ambank.png',
       'color': Color(0xFFFF5722)
     },
     {
       'name': 'Bank Islam',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/bankislam.png',
       'color': Color(0xFF009688)
     },
     {
       'name': 'OCBC Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/ocbc.png',
       'color': Color(0xFFE53935)
     },
     {
       'name': 'UOB Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/uob.png',
       'color': Color(0xFF3F51B5)
     },
     {
       'name': 'HSBC Bank',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/hsbc.png',
       'color': Color(0xFFE53935)
     },
     {
       'name': 'Standard Chartered',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/strandardchartered.png',
       'color': Color(0xFF00796B)
     },
     {
       'name': 'Bank Rakyat',
-      'icon': Icons.account_balance,
+      'logo': 'assets/images/bankrakyat.jpg',
       'color': Color(0xFF1976D2)
     },
   ];
@@ -1087,15 +1087,23 @@ class _TransferScreenState extends State<TransferScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    width: 32,
+                    height: 32,
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: (bank['color'] as Color).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(
-                      bank['icon'] as IconData,
-                      color: bank['color'] as Color,
-                      size: 18,
+                    child: Image.asset(
+                      bank['logo'] as String,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.account_balance,
+                          color: bank['color'] as Color,
+                          size: 20,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
