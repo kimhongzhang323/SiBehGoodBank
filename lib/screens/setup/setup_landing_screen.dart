@@ -130,11 +130,18 @@ class SetupLandingScreen extends StatelessWidget {
         stepNumber: 3,
       ),
       _SetupStep(
-        icon: Icons.account_balance_wallet_outlined,
+        icon: Icons.family_restroom,
+        title: 'Family Chain',
+        description: 'Monitor children & seniors (Optional)',
+        isCompleted: false,
+        stepNumber: 4,
+      ),
+      _SetupStep(
+        icon: Icons.tune,
         title: 'Account Preferences',
         description: 'Customize your banking experience',
         isCompleted: false,
-        stepNumber: 4,
+        stepNumber: 5,
       ),
     ];
 
