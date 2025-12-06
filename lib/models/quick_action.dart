@@ -20,7 +20,6 @@ enum QuickActionType {
   analytics,
   rewards,
   support,
-  settings,
   home,
   ai,
 }
@@ -201,15 +200,6 @@ const List<QuickAction> allActions = [
     selectedIcon: Icons.auto_awesome,
     route: '/ai',
     defaultOrder: 12,
-  ),
-  QuickAction(
-    type: QuickActionType.settings,
-    label: 'Settings',
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings,
-    route: '/settings',
-    defaultOrder: 13,
-    canBePrimary: false, // Settings typically shouldn't be primary
   ),
 ];
 

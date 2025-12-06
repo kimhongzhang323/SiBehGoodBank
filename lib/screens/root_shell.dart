@@ -6,7 +6,6 @@ import '../widgets/widgets.dart';
 import 'home_screen.dart';
 import 'ai_chat_screen.dart';
 import 'analytics_screen.dart';
-import 'settings_screen.dart';
 
 /// Root shell that manages the customizable bottom navigation bar.
 /// 
@@ -125,8 +124,6 @@ class _RootShellState extends State<RootShell> {
         return _PlaceholderScreen(title: 'Rewards', icon: Icons.card_giftcard, onBackToHome: onBackToHome);
       case QuickActionType.support:
         return _PlaceholderScreen(title: 'Support', icon: Icons.support_agent, onBackToHome: onBackToHome);
-      case QuickActionType.settings:
-        return SettingsScreen(onBackToHome: onBackToHome);
     }
   }
 }

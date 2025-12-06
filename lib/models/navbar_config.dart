@@ -39,7 +39,7 @@ class UserNavbarConfig {
         QuickActionType.analytics,
         QuickActionType.scanQr, // Primary action (center)
         QuickActionType.ai,
-        QuickActionType.settings,
+        QuickActionType.transfer,
       ],
       primaryAction: QuickActionType.scanQr,
       lastModified: DateTime.now(),
