@@ -2,42 +2,40 @@ import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 
-class TransferReceiptScreen extends StatelessWidget {
-  final String amount;
-  final String currencySymbol;
-  final String recipientName;
-  final String recipientAccount;
-  final String? description;
-  final bool isReceiving;
-  final VoidCallback? onDone;
+enum TransactionType { sent, received }
 
-  const TransferReceiptScreen({
+class TransactionReceiptScreen extends StatelessWidget {
+  final TransactionType type;
+  final String amount;
+  final String peerName; // Sender or Receiver name
+  final String peerAccount;
+
+  const TransactionReceiptScreen({
     super.key,
+    required this.type,
     required this.amount,
-    required this.currencySymbol,
-    required this.recipientName,
-    required this.recipientAccount,
-    this.description,
-    this.isReceiving = false,
-    this.onDone,
+    required this.peerName,
+    required this.peerAccount,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Determine UI elements based on transaction type
+    final isReceived = type == TransactionType.received;
+    final title = isReceived ? 'Money Received' : 'Transfer Successful';
+    final amountPrefix = isReceived ? '+' : '-';
+    final amountColor = isReceived ? AppColors.positive : AppColors.textPrimary;
+    final icon =
+        isReceived ? Icons.arrow_downward_rounded : Icons.check_rounded;
+    final iconColor = isReceived ? AppColors.positive : AppColors.accent;
+    final peerLabel = isReceived ? 'From' : 'To';
+
     // Manual date formatting
     final now = DateTime.now();
     final dateStr = "${_getMonth(now.month)} ${now.day}, ${now.year}";
     final timeStr =
         "${_formatHour(now.hour)}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
     final refId = 'REF-${now.millisecondsSinceEpoch.toString().substring(5)}';
-
-    // UI Configuration based on type
-    final statusColor = isReceiving ? AppColors.positive : AppColors.accent;
-    final titleText = isReceiving ? 'Money Received' : 'Transfer Successful';
-    final amountSign = isReceiving ? '+' : '-';
-    final amountColor =
-        isReceiving ? AppColors.positive : AppColors.textPrimary;
-    final userLabel = isReceiving ? 'From' : 'To';
 
     return Scaffold(
       body: Stack(
@@ -62,35 +60,31 @@ class TransferReceiptScreen extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Success Icon (Dynamic Color)
+                        // Status Icon
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
+                            color: iconColor.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            isReceiving
-                                ? Icons.download_rounded
-                                : Icons.check_rounded,
-                            color: statusColor,
+                            icon,
+                            color: iconColor,
                             size: 40,
                           ),
                         ),
 
                         const SizedBox(height: 24),
 
-                        // Dynamic Title
                         Text(
-                          titleText,
+                          title,
                           style: AppTextStyles.headlineSmall,
                         ),
 
                         const SizedBox(height: 8),
 
-// Dynamic Amount with Currency Symbol
                         Text(
-                          '$amountSign$currencySymbol $amount', // Added space here
+                          '$amountPrefix\$$amount',
                           style: AppTextStyles.amountLarge.copyWith(
                             color: amountColor,
                           ),
@@ -101,14 +95,10 @@ class TransferReceiptScreen extends StatelessWidget {
                         const SizedBox(height: 24),
 
                         // Details
-                        _buildRow(userLabel, recipientName),
+                        _buildRow(peerLabel, peerName),
                         const SizedBox(height: 16),
-                        _buildRow('Account', recipientAccount),
+                        _buildRow('Account', peerAccount),
                         const SizedBox(height: 16),
-                        if (description != null && description!.isNotEmpty) ...[
-                          _buildRow('Description', description!),
-                          const SizedBox(height: 16),
-                        ],
                         _buildRow('Date', '$dateStr • $timeStr'),
                         const SizedBox(height: 16),
                         _buildRow('Ref ID', refId),
@@ -129,18 +119,12 @@ class TransferReceiptScreen extends StatelessWidget {
                             Expanded(
                               child: PrimaryButton(
                                 text: 'Done',
-                                backgroundColor: isReceiving
-                                    ? AppColors.positive
-                                    : AppColors.accent,
+                                backgroundColor: AppColors.accent,
                                 textColor: Colors.white,
                                 onPressed: () {
-                                  // If onDone callback provided, use it to navigate back to home
-                                  if (onDone != null) {
-                                    Navigator.of(context).popUntil((route) => route.isFirst);
-                                    onDone!();
-                                  } else {
-                                    Navigator.of(context).popUntil((route) => route.isFirst);
-                                  }
+                                  // Return to Home
+                                  Navigator.of(context)
+                                      .popUntil((route) => route.isFirst);
                                 },
                               ),
                             ),

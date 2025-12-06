@@ -6,7 +6,9 @@ import '../constants/constants.dart';
 /// AI copilot surface that sits above the home page.
 /// Shows quick reasoning, tool choices, and a chat-style thread.
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key});
+  final VoidCallback? onBackToHome;
+  
+  const AiChatScreen({super.key, this.onBackToHome});
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -434,13 +436,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenPadding,
-            vertical: AppSpacing.lg,
+            vertical: AppSpacing.md,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(theme),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
               Expanded(
                 child: ListView(
                   controller: _scrollController,
@@ -594,6 +596,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        if (widget.onBackToHome != null)
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: widget.onBackToHome,
+          )
+        else
+          const SizedBox(width: 48),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

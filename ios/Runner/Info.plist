@@ -49,5 +49,11 @@
 	<string>This app needs access to speech recognition to process voice commands</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to microphone for voice input</string>
+	<!-- Camera permission for QR code scanning -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires camera access to scan QR codes for payments.</string>
+	<!-- Photo library access for uploading QR code images -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app requires photo library access to upload QR code images for scanning.</string>
 </dict>
 </plist>
