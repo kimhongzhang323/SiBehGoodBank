@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/screens.dart';
 import 'constants/constants.dart';
+import 'services/services.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,12 +16,35 @@ void main() {
   runApp(const SibehGoodBankApp());
 }
 
-class SibehGoodBankApp extends StatelessWidget {
+class SibehGoodBankApp extends StatefulWidget {
   const SibehGoodBankApp({super.key});
 
   @override
+  State<SibehGoodBankApp> createState() => _SibehGoodBankAppState();
+}
+
+class _SibehGoodBankAppState extends State<SibehGoodBankApp> {
+  late final NavbarConfigProvider _navbarProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _navbarProvider = NavbarConfigProvider();
+    _navbarProvider.initialize();
+  }
+
+  @override
+  void dispose() {
+    _navbarProvider.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    // Wrap with NavbarConfigScope to provide navbar configuration to all screens
+    return NavbarConfigScope(
+      provider: _navbarProvider,
+      child: MaterialApp(
       title: 'SiBeh Good Bank',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -60,7 +84,9 @@ class SibehGoodBankApp extends StatelessWidget {
         '/onboarding': (context) => const OnboardingScreen(),
         '/home': (context) => const RootShell(),
         '/analytics': (context) => const AnalyticsScreen(),
+        '/navbar-customization': (context) => const NavbarCustomizationScreen(),
       },
+      ),
     );
   }
 }

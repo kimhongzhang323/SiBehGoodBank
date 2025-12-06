@@ -6,3 +6,4 @@ export 'segmented_tab.dart';
 export 'charts.dart';
 export 'balance_card.dart';
 export 'trend_badge.dart';
+export 'custom_bottom_nav_bar.dart';
