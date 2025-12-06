@@ -4,6 +4,7 @@ import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'analytics_screen.dart';
 import 'gamification_screen.dart';
+import 'more_screen.dart';
 import 'news_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
@@ -606,7 +607,9 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.more_horiz,
             label: 'More',
             color: AppColors.textSecondary,
-            onTap: () {},
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const MoreScreen()),
+            ),
           ),
         ],
       ),
