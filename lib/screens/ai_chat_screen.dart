@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../constants/constants.dart';
 import '../services/ai_chat_service.dart';
 
@@ -25,7 +26,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _isListening = false;
   String _voiceText = '';
   double _soundLevel = 0.0;
-  bool _useSimulatedVoice = true; // Use simulated voice for demo
+  bool _useSimulatedVoice = false; // Set to false to use real voice recognition
   bool _showAttachmentMenu = false;
 
   // AI Chat Service for backend integration
@@ -33,12 +34,51 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _isAiProcessing = false;
   bool _useAiBackend = true; // Toggle to enable/disable AI backend
 
+  // Voice Chat Mode (Flutter TTS)
+  bool _voiceChatMode = false; // Whether AI responses should be spoken
+  late FlutterTts _flutterTts;
+  bool _isSpeaking = false;
+
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
     _aiChatService = AiChatService(userId: 'user-001');
+    _flutterTts = FlutterTts();
+    _initTts();
     _checkAiServiceHealth();
+    _initSpeechRecognition();
+  }
+
+  Future<void> _initTts() async {
+    // Configure TTS settings
+    await _flutterTts.setLanguage('en-US');
+    await _flutterTts.setSpeechRate(1.0); // Normal-fast speed (0.0-1.0)
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+    
+    // Set up completion handler
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    });
+    
+    _flutterTts.setErrorHandler((error) {
+      debugPrint('TTS Error: $error');
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    });
+  }
+
+  Future<void> _initSpeechRecognition() async {
+    // Pre-initialize speech recognition
+    try {
+      await _speech.initialize();
+    } catch (e) {
+      debugPrint('Speech init error: $e');
+    }
   }
 
   Future<void> _checkAiServiceHealth() async {
@@ -58,7 +98,73 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollController.dispose();
     _speech.stop();
     _aiChatService.dispose();
+    _flutterTts.stop();
     super.dispose();
+  }
+
+  /// Speak text using Flutter TTS (free, offline)
+  Future<void> _speakText(String text) async {
+    if (!_voiceChatMode || text.isEmpty) return;
+
+    setState(() => _isSpeaking = true);
+
+    try {
+      await _flutterTts.speak(text);
+    } catch (e) {
+      debugPrint('TTS error: $e');
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Voice error: $e'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Stop speaking
+  void _stopSpeaking() {
+    _flutterTts.stop();
+    setState(() => _isSpeaking = false);
+  }
+
+  /// Toggle voice chat mode
+  void _toggleVoiceChatMode() {
+    setState(() {
+      _voiceChatMode = !_voiceChatMode;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _voiceChatMode ? Icons.volume_up : Icons.volume_off,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _voiceChatMode
+                  ? 'Voice chat enabled - AI will speak responses'
+                  : 'Voice chat disabled',
+            ),
+          ],
+        ),
+        backgroundColor: _voiceChatMode ? AppColors.positive : AppColors.textSecondary,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _startSimulatedListening(Function(String) onResult) async {
@@ -451,6 +557,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
           });
         });
         _scrollToBottom();
+
+        // Speak the TLDR response if voice chat mode is enabled
+        // Use TLDR for shorter, more natural speech output
+        if (_voiceChatMode) {
+          final textToSpeak = response.tldr ?? response.message;
+          if (textToSpeak.isNotEmpty) {
+            _speakText(textToSpeak);
+          }
+        }
       }
     } on AiChatException catch (e) {
       if (mounted) {
@@ -1614,12 +1729,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 isListening: _isListening,
                 voiceText: _voiceText,
                 soundLevel: _soundLevel,
-                onVoiceStart: () =>
-                    _startSimulatedListening(_handleUserMessage),
-                onVoiceStop: _stopSimulatedListening,
+                onVoiceStart: () {
+                  // Use real voice recognition
+                  if (_useSimulatedVoice) {
+                    _startSimulatedListening(_handleUserMessage);
+                  } else {
+                    _startListening(_handleUserMessage);
+                  }
+                },
+                onVoiceStop: () {
+                  if (_useSimulatedVoice) {
+                    _stopSimulatedListening();
+                  } else {
+                    _stopListening();
+                  }
+                },
                 showAttachmentMenu: _showAttachmentMenu,
                 onToggleAttachment: _toggleAttachmentMenu,
                 onReceiptUpload: _handleReceiptUpload,
+                voiceChatMode: _voiceChatMode,
+                isSpeaking: _isSpeaking,
+                onStopSpeaking: _stopSpeaking,
               ),
             ],
           ),
@@ -1651,18 +1781,95 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Autonomous agent that reasons, calls tools, and executes tasks.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Autonomous agent that reasons, calls tools, and executes tasks.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sm),
+        // Voice Chat Mode Toggle
+        GestureDetector(
+          onTap: _toggleVoiceChatMode,
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: _voiceChatMode
+                  ? AppColors.accent.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              border: _voiceChatMode
+                  ? Border.all(color: AppColors.accent, width: 2)
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _voiceChatMode ? Icons.volume_up : Icons.volume_off,
+                  color: _voiceChatMode ? AppColors.accent : AppColors.textSecondary,
+                  size: 20,
+                ),
+                if (_isSpeaking) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        // More options menu
+        PopupMenuButton<String>(
+          icon: Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            ),
+            child: const Icon(
+              Icons.more_vert,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
+          ),
+          onSelected: (value) {
+            if (value == 'clear') {
+              _clearChat();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'clear',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, color: AppColors.negative),
+                  SizedBox(width: 8),
+                  Text('Clear Chat History'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: AppSpacing.xs),
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
           decoration: BoxDecoration(
@@ -1676,6 +1883,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Clear chat history
+  void _clearChat() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Chat History'),
+        content: const Text('This will clear all messages and start a fresh conversation. Continue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _messages.clear();
+                _messages.add({
+                  'speaker': 'Agent',
+                  'message': "Hello! I'm your SiBeh Good Bank AI assistant. How can I help you today?",
+                  'alignment': Alignment.centerLeft,
+                });
+              });
+              // Also clear backend history
+              _aiChatService.clearHistory();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Chat history cleared'),
+                  backgroundColor: AppColors.positive,
+                ),
+              );
+            },
+            child: const Text('Clear', style: TextStyle(color: AppColors.negative)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3481,6 +3727,9 @@ class _Composer extends StatefulWidget {
     required this.showAttachmentMenu,
     required this.onToggleAttachment,
     required this.onReceiptUpload,
+    this.voiceChatMode = false,
+    this.isSpeaking = false,
+    this.onStopSpeaking,
   });
 
   final void Function(String) onSend;
@@ -3492,6 +3741,9 @@ class _Composer extends StatefulWidget {
   final bool showAttachmentMenu;
   final VoidCallback onToggleAttachment;
   final void Function(String) onReceiptUpload;
+  final bool voiceChatMode;
+  final bool isSpeaking;
+  final VoidCallback? onStopSpeaking;
 
   @override
   State<_Composer> createState() => _ComposerState();

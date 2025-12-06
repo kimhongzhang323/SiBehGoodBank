@@ -62,6 +62,32 @@ class AiChatService {
     _sessionId = null;
   }
 
+  /// Clear conversation history on the backend
+  Future<void> clearHistory() async {
+    if (_sessionId == null) return;
+    
+    try {
+      await _client.delete(
+        Uri.parse('$_currentBaseUrl/api/v1/chat/history'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'session_id': _sessionId,
+          'user_id': userId,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      
+      // Clear local session
+      _sessionId = null;
+      debugPrint('Chat history cleared');
+    } catch (e) {
+      debugPrint('Failed to clear history: $e');
+      // Still clear local session even if backend fails
+      _sessionId = null;
+    }
+  }
+
   /// Send a chat message to the AI agent and get a response.
   ///
   /// Returns a [ChatResponse] containing the assistant's message.
@@ -95,6 +121,7 @@ class AiChatService {
 
         return ChatResponse(
           message: data['message'] ?? '',
+          tldr: data['tldr'],
           sessionId: data['session_id'],
           timestamp:
               DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now(),
@@ -547,12 +574,14 @@ class AiChatService {
 /// Response model for chat messages.
 class ChatResponse {
   final String message;
+  final String? tldr;  // TLDR summary for text-to-speech
   final String? sessionId;
   final DateTime timestamp;
   final List<String>? chartImages;
 
   ChatResponse({
     required this.message,
+    this.tldr,
     this.sessionId,
     required this.timestamp,
     this.chartImages,
@@ -560,7 +589,7 @@ class ChatResponse {
 
   @override
   String toString() =>
-      'ChatResponse(message: $message, sessionId: $sessionId, chartImages: ${chartImages?.length ?? 0})';
+      'ChatResponse(message: $message, tldr: $tldr, sessionId: $sessionId, chartImages: ${chartImages?.length ?? 0})';
 }
 
 /// Exception class for AI chat service errors.

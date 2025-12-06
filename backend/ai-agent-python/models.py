@@ -80,6 +80,7 @@ class ChatMessage(BaseModel):
 class ChatResponse(BaseModel):
     """Response model for chat endpoint."""
     message: str = Field(..., description="Assistant's response")
+    tldr: Optional[str] = Field(default=None, description="TLDR summary for text-to-speech")
     user_id: str = Field(..., description="User ID")
     session_id: Optional[str] = Field(default=None, description="Session ID for continuation")
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -89,6 +90,7 @@ class ChatResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "message": "Your Main Savings account balance is RM 15,847.50.",
+                "tldr": "Your savings balance is RM 15,847.50.",
                 "user_id": "user-001",
                 "timestamp": "2024-01-15T10:30:00",
                 "chart_images": None

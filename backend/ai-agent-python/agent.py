@@ -117,6 +117,59 @@ class BankingAgent:
         self.tool_executor = BankingToolExecutor(user_id)
         self.conversation_history: List[Dict[str, Any]] = []
         self.max_tool_iterations = 10
+        self.max_history_messages = 20  # Keep last N message pairs to avoid token overflow
+    
+    def summarize_for_speech(self, text: str) -> str:
+        """
+        Generate a TLDR summary of the response for text-to-speech.
+        Uses Claude to create a concise, speech-friendly version.
+        """
+        if not text or len(text) < 100:
+            # Short responses don't need summarization
+            return text
+        
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-haiku-20241022",  # Use faster/cheaper model for summarization
+                max_tokens=300,
+                temperature=0.3,
+                system="""You are a concise summarizer. Create a brief TLDR version of the banking assistant's response that is suitable for text-to-speech.
+
+Rules:
+- Keep it under 2-3 sentences
+- Remove any markdown formatting, bullet points, or special characters
+- Focus on the key information the user needs
+- Use natural spoken language
+- Remove reference numbers, timestamps, or technical details unless critical
+- If it's a transaction confirmation, include the amount and recipient
+- If it's account info, include the key balance or status
+- Be warm but brief""",
+                messages=[{
+                    "role": "user",
+                    "content": f"Summarize this banking response for voice output:\n\n{text}"
+                }]
+            )
+            
+            summary = response.content[0].text.strip()
+            print(f"[Agent] TLDR generated: {summary[:100]}...")
+            return summary
+            
+        except Exception as e:
+            print(f"[Agent] TLDR generation failed: {e}")
+            # Fallback: return first 200 chars if summarization fails
+            return text[:200] + "..." if len(text) > 200 else text
+    
+    def _truncate_history(self):
+        """Truncate conversation history to avoid token limit issues."""
+        if len(self.conversation_history) > self.max_history_messages:
+            # Keep system context by preserving recent messages
+            self.conversation_history = self.conversation_history[-self.max_history_messages:]
+            print(f"[Agent] Truncated history to {len(self.conversation_history)} messages")
+    
+    def clear_history(self):
+        """Clear conversation history to start fresh."""
+        self.conversation_history = []
+        print("[Agent] Conversation history cleared")
     
     def _build_messages(self, user_message: str) -> List[Dict[str, Any]]:
         """Build the messages array for the API call."""
@@ -127,6 +180,26 @@ class BankingAgent:
         })
         return messages
     
+    def _truncate_tool_result(self, result: Any, max_chars: int = 5000) -> Any:
+        """Truncate large tool results to avoid token overflow."""
+        result_str = json.dumps(result)
+        if len(result_str) > max_chars:
+            # For dict results, try to truncate intelligently
+            if isinstance(result, dict):
+                truncated = result.copy()
+                # Remove large base64 images from truncation check (they're handled separately)
+                if "chart_image_base64" in truncated:
+                    del truncated["chart_image_base64"]
+                # Truncate arrays
+                for key, value in truncated.items():
+                    if isinstance(value, list) and len(value) > 10:
+                        truncated[key] = value[:10]
+                        if isinstance(truncated[key], list):
+                            truncated[key].append({"_truncated": f"...and {len(value) - 10} more items"})
+                return truncated
+            return {"_truncated": True, "summary": result_str[:max_chars] + "..."}
+        return result
+
     def _process_tool_calls(self, tool_use_blocks: List[Any]) -> tuple[List[Dict[str, Any]], List[str]]:
         """Process tool calls and return results along with any generated chart images."""
         results = []
@@ -147,6 +220,14 @@ class BankingAgent:
             # Check if the result contains a chart image
             if isinstance(result, dict) and "chart_image_base64" in result:
                 chart_images.append(result["chart_image_base64"])
+                # Remove base64 from result to save tokens - AI already knows it generated a chart
+                result_for_context = result.copy()
+                del result_for_context["chart_image_base64"]
+                result_for_context["_chart_generated"] = True
+                result = result_for_context
+            
+            # Truncate large results to prevent token overflow
+            result = self._truncate_tool_result(result)
             
             results.append({
                 "type": "tool_result",
@@ -162,6 +243,9 @@ class BankingAgent:
         Handles tool calls in a loop until the assistant provides a final response.
         Returns a dict with 'message' and optionally 'chart_images'.
         """
+        # Truncate history before building messages to avoid token overflow
+        self._truncate_history()
+        
         messages = self._build_messages(user_message)
         all_chart_images = []
         
@@ -218,8 +302,14 @@ class BankingAgent:
                     "content": text_response
                 })
                 
-                # Return response with any chart images collected
-                result = {"message": text_response}
+                # Generate TLDR for text-to-speech
+                tldr = self.summarize_for_speech(text_response)
+                
+                # Return response with any chart images collected and TLDR
+                result = {
+                    "message": text_response,
+                    "tldr": tldr
+                }
                 if all_chart_images:
                     result["chart_images"] = all_chart_images
                 return result
@@ -235,14 +325,15 @@ class BankingAgent:
             })
         
         return {"message": "I apologize, but I'm having trouble completing your request. Please try again or contact customer service."}
-        
-        return "I apologize, but I'm having trouble completing your request. Please try again or contact customer service."
     
     def chat_stream(self, user_message: str) -> Generator[str, None, None]:
         """
         Process a user message and stream the assistant's response.
         Yields text chunks as they arrive.
         """
+        # Truncate history before building messages
+        self._truncate_history()
+        
         messages = self._build_messages(user_message)
         
         for iteration in range(self.max_tool_iterations):

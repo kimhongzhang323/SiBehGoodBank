@@ -162,12 +162,15 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         if isinstance(response_data, str):
             response_text = response_data
             chart_images = None
+            tldr = None
         else:
             response_text = response_data.get("message", "")
             chart_images = response_data.get("chart_images")
+            tldr = response_data.get("tldr")
         
         return ChatResponse(
             message=response_text,
+            tldr=tldr,
             user_id=request.user_id,
             session_id=session_id,
             timestamp=datetime.now(),
