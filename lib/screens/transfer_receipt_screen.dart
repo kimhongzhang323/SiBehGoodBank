@@ -84,9 +84,9 @@ class TransferReceiptScreen extends StatelessWidget {
 
                         const SizedBox(height: 8),
 
-                        // Dynamic Amount with Currency Symbol
+// Dynamic Amount with Currency Symbol
                         Text(
-                          '$amountSign$currencySymbol$amount',
+                          '$amountSign$currencySymbol $amount', // Added space here
                           style: AppTextStyles.amountLarge.copyWith(
                             color: amountColor,
                           ),

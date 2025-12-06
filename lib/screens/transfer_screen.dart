@@ -26,7 +26,7 @@ class _TransferScreenState extends State<TransferScreen> {
       return;
     }
 
-    // 2. Error Handling: Invalid Amount (0 or non-numeric)
+    // 2. Error Handling: Invalid Amount
     final value = double.tryParse(_amountController.text);
     if (value == null || value <= 0) {
       _showError('Please enter a valid amount greater than 0.');
@@ -35,7 +35,6 @@ class _TransferScreenState extends State<TransferScreen> {
 
     setState(() => _isLoading = true);
 
-    // Single Step: Sender Authentication Only
     _showBiometricPrompt(
         context: context,
         userRole: 'Sender',
@@ -50,7 +49,6 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 
   void _completeTransfer() {
-    // Stop loading before navigation
     setState(() => _isLoading = false);
 
     Navigator.of(context).pushReplacement(
@@ -161,7 +159,7 @@ class _TransferScreenState extends State<TransferScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      isDismissible: false, // Prevents clicking outside
+      isDismissible: false,
       backgroundColor: Colors.transparent,
       builder: (context) => _BiometricSheet(
         role: userRole,
@@ -169,58 +167,79 @@ class _TransferScreenState extends State<TransferScreen> {
         onUsePassword: onPasswordSelected,
       ),
     ).then((_) {
-      // 3. Error Handling: Back Button Logic
-      // If the sheet is closed (via back button) without authenticating or selecting password,
-      // we must reset the loading state.
-      // We check if we are still mounted to be safe.
       if (mounted && _isLoading) {
-        // We only reset if we are NOT transitioning to the password prompt.
-        // However, since onPasswordSelected pops the context manually before showing dialog,
-        // this .then block runs. We need a way to know if we are continuing or aborting.
-        // A simple way is to rely on the Password Dialog to handle its own loading state,
-        // but since we popped, we can't easily track it here without complex state.
-        //
-        // SIMPLIFIED FIX: We assume if the bottom sheet closes, we stop loading.
-        // If onPasswordSelected is called, we will re-set loading in the dialog logic or keep it true?
-        // Actually, onPasswordSelected pops the sheet, which triggers this .then.
-        // So we need to be careful not to flicker.
-        //
-        // Better approach: Let the specific callbacks handle the flow, but if the user
-        // hard-dismisses (Android back button), we stop loading.
-        // Since isDismissible is false, only code can dismiss it.
+        // If sheet dismissed without explicit action, stop loading is handled
+        // by specific callbacks, but purely safe guard here isn't easy without state flags.
+        // Reliance on explicit Cancel/Confirm logic below is safer.
       }
     });
   }
 
   void _showPasswordPrompt(BuildContext context, String userRole) {
+    final passwordController = TextEditingController();
+    // Using a local variable for error text inside the dialog
+    String? errorText;
+
     showDialog(
       context: context,
-      barrierDismissible: false, // Force user to use buttons
-      builder: (ctx) => AlertDialog(
-        title: Text('$userRole Password'),
-        content: const TextField(
-          autofocus: true,
-          obscureText: true,
-          decoration: InputDecoration(hintText: 'Enter password'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // 4. Error Handling: Stop loading if user cancels password
-              setState(() => _isLoading = false);
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _completeTransfer();
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
+      barrierDismissible: false,
+      builder: (ctx) {
+        // StatefulBuilder allows us to update the Dialog UI (error message)
+        // without rebuilding the whole screen
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('$userRole Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: passwordController,
+                  autofocus: true,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Enter password',
+                    errorText: errorText, // Displays error if set
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Stop loading on cancel
+                  setState(() => _isLoading = false);
+                },
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final password = passwordController.text;
+
+                  // 3. Password Validation Logic
+                  if (password.isEmpty) {
+                    setDialogState(() {
+                      errorText = 'Password cannot be empty';
+                    });
+                    return;
+                  }
+                  if (password.length < 4) {
+                    setDialogState(() {
+                      errorText = 'Minimum length is 4 characters';
+                    });
+                    return;
+                  }
+
+                  // If valid
+                  Navigator.pop(ctx);
+                  _completeTransfer();
+                },
+                child: const Text('Confirm'),
+              ),
+            ],
+          );
+        });
+      },
     );
   }
 }

@@ -35,10 +35,9 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
 
     setState(() => _isLoading = true);
 
-    // Sender Authentication (on Receive Screen)
     _showBiometricPrompt(
         context: context,
-        userRole: 'Sender', // Authenticating the Sender
+        userRole: 'Sender',
         onAuthenticated: () {
           Navigator.pop(context);
           _completeReceive();
@@ -155,7 +154,6 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
     );
   }
 
-  // Reuse the Biometric UI Logic
   void _showBiometricPrompt({
     required BuildContext context,
     required String userRole,
@@ -176,34 +174,65 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
   }
 
   void _showPasswordPrompt(BuildContext context, String userRole) {
+    final passwordController = TextEditingController();
+    String? errorText;
+
     showDialog(
       context: context,
-      barrierDismissible: false, // Force user to use buttons
-      builder: (ctx) => AlertDialog(
-        title: Text('$userRole Password'),
-        content: const TextField(
-          autofocus: true,
-          obscureText: true,
-          decoration: InputDecoration(hintText: 'Enter password'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // 3. Error Handling: Reset loading on cancel
-              setState(() => _isLoading = false);
-            },
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _completeReceive();
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('$userRole Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: passwordController,
+                  autofocus: true,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'Enter password',
+                    errorText: errorText, // Error state
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  setState(() => _isLoading = false);
+                },
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final password = passwordController.text;
+
+                  // 3. Password Validation Logic
+                  if (password.isEmpty) {
+                    setDialogState(() {
+                      errorText = 'Password cannot be empty';
+                    });
+                    return;
+                  }
+                  if (password.length < 4) {
+                    setDialogState(() {
+                      errorText = 'Minimum length is 4 characters';
+                    });
+                    return;
+                  }
+
+                  Navigator.pop(ctx);
+                  _completeReceive();
+                },
+                child: const Text('Confirm'),
+              ),
+            ],
+          );
+        });
+      },
     );
   }
 }
