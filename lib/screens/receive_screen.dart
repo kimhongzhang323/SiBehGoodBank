@@ -1,49 +1,48 @@
 import 'package:flutter/material.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
-import 'transaction_receipt_screen.dart'; // Use generic receipt
+import 'transaction_receipt_screen.dart';
 
-class TransferScreen extends StatefulWidget {
-  const TransferScreen({super.key});
+class ReceiveScreen extends StatefulWidget {
+  const ReceiveScreen({super.key});
 
   @override
-  State<TransferScreen> createState() => _TransferScreenState();
+  State<ReceiveScreen> createState() => _ReceiveScreenState();
 }
 
-class _TransferScreenState extends State<TransferScreen> {
+class _ReceiveScreenState extends State<ReceiveScreen> {
   final _amountController = TextEditingController();
   bool _isLoading = false;
 
-  void _initiateTransfer() {
+  void _initiateReceive() {
     if (_amountController.text.isEmpty) return;
 
     setState(() => _isLoading = true);
 
-    // Single Step: Sender Authentication Only
+    // Sender Authentication (on Receive Screen)
     _showBiometricPrompt(
         context: context,
-        userRole: 'Sender',
+        userRole: 'Sender', // Authenticating the Sender
         onAuthenticated: () {
-          Navigator.pop(context); // Close Sender Prompt
-          // Proceed directly to completion
-          _completeTransfer();
+          Navigator.pop(context);
+          _completeReceive();
         },
         onPasswordSelected: () {
-          Navigator.pop(context); // Close Prompt
+          Navigator.pop(context);
           _showPasswordPrompt(context, 'Sender');
         });
   }
 
-  void _completeTransfer() {
+  void _completeReceive() {
     setState(() => _isLoading = false);
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => TransactionReceiptScreen(
-          type: TransactionType.sent, // Specify Type
+          type: TransactionType.received, // Specify Type
           amount: _amountController.text,
-          peerName: 'John Doe',
-          peerAccount: '**** 4589',
+          peerName: 'Sender Name', // Placeholder
+          peerAccount: '**** 1234',
         ),
       ),
     );
@@ -60,7 +59,7 @@ class _TransferScreenState extends State<TransferScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Transfer Money', style: AppTextStyles.headlineSmall),
+        title: const Text('Receive Money', style: AppTextStyles.headlineSmall),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -68,7 +67,7 @@ class _TransferScreenState extends State<TransferScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Enter Amount', style: AppTextStyles.labelLarge),
+            const Text('Amount to Receive', style: AppTextStyles.labelLarge),
             const SizedBox(height: AppSpacing.sm),
             TextField(
               autofocus: true,
@@ -86,37 +85,41 @@ class _TransferScreenState extends State<TransferScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide:
-                      const BorderSide(color: AppColors.accent, width: 2),
+                      const BorderSide(color: AppColors.positive, width: 2),
                 ),
               ),
             ),
+
             const SizedBox(height: AppSpacing.xl),
-            const Text('To', style: AppTextStyles.labelLarge),
-            const SizedBox(height: AppSpacing.sm),
-            const GlassCard(
+
+            // Instruction
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.positive.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.pastelBlue,
-                    child: Icon(Icons.person, color: AppColors.accentBlue),
-                  ),
-                  SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('John Doe', style: AppTextStyles.titleMedium),
-                      Text('**** 4589', style: AppTextStyles.bodySmall),
-                    ],
+                  const Icon(Icons.info_outline, color: AppColors.positive),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Hand device to Sender for authentication to confirm receipt.',
+                      style: AppTextStyles.bodyMedium
+                          .copyWith(color: AppColors.textPrimary),
+                    ),
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: AppSpacing.xxl),
             PrimaryButton(
-              text: 'Transfer',
+              text: 'Verify & Receive',
               isLoading: _isLoading,
-              onPressed: _initiateTransfer,
-              backgroundColor: AppColors.accent,
+              onPressed: _initiateReceive,
+              backgroundColor: AppColors.positive,
               textColor: Colors.white,
             ),
           ],
@@ -125,6 +128,7 @@ class _TransferScreenState extends State<TransferScreen> {
     );
   }
 
+  // Reuse the Biometric UI Logic
   void _showBiometricPrompt({
     required BuildContext context,
     required String userRole,
@@ -136,7 +140,7 @@ class _TransferScreenState extends State<TransferScreen> {
       isScrollControlled: true,
       isDismissible: false,
       backgroundColor: Colors.transparent,
-      builder: (context) => _BiometricSheet(
+      builder: (context) => _ReceiveBiometricSheet(
         role: userRole,
         onSuccess: onAuthenticated,
         onUsePassword: onPasswordSelected,
@@ -161,7 +165,7 @@ class _TransferScreenState extends State<TransferScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _completeTransfer();
+              _completeReceive();
             },
             child: const Text('Confirm'),
           ),
@@ -171,23 +175,23 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 }
 
-// Reusable Biometric Sheet (Same as before)
-class _BiometricSheet extends StatefulWidget {
+// Biometric Sheet copy for Receive Screen (could be extracted to a widget file)
+class _ReceiveBiometricSheet extends StatefulWidget {
   final String role;
   final VoidCallback onSuccess;
   final VoidCallback onUsePassword;
 
-  const _BiometricSheet({
+  const _ReceiveBiometricSheet({
     required this.role,
     required this.onSuccess,
     required this.onUsePassword,
   });
 
   @override
-  State<_BiometricSheet> createState() => _BiometricSheetState();
+  State<_ReceiveBiometricSheet> createState() => _ReceiveBiometricSheetState();
 }
 
-class _BiometricSheetState extends State<_BiometricSheet> {
+class _ReceiveBiometricSheetState extends State<_ReceiveBiometricSheet> {
   int _stage = 0;
   String _statusText = 'Scanning Face ID...';
 
@@ -242,22 +246,20 @@ class _BiometricSheetState extends State<_BiometricSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildBiometricIcon(Icons.face,
-                    isActive: _stage == 0, isDone: _stage > 0),
+                _buildIcon(Icons.face, 0),
                 Container(
                     width: 40,
                     height: 2,
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     color: AppColors.glassBorder),
-                _buildBiometricIcon(Icons.fingerprint,
-                    isActive: _stage == 1, isDone: _stage > 1),
+                _buildIcon(Icons.fingerprint, 1),
               ],
             ),
           ),
           const SizedBox(height: 24),
           Text(_statusText,
               style: AppTextStyles.bodyLarge.copyWith(
-                  color: AppColors.accent, fontWeight: FontWeight.w600)),
+                  color: AppColors.positive, fontWeight: FontWeight.w600)),
           const SizedBox(height: 32),
           TextButton(
             onPressed: widget.onUsePassword,
@@ -271,11 +273,15 @@ class _BiometricSheetState extends State<_BiometricSheet> {
     );
   }
 
-  Widget _buildBiometricIcon(IconData icon,
-      {required bool isActive, required bool isDone}) {
+  Widget _buildIcon(IconData icon, int stepIndex) {
+    bool isActive = _stage == stepIndex;
+    bool isDone = _stage > stepIndex;
     Color color = isDone
         ? AppColors.positive
-        : (isActive ? AppColors.accent : AppColors.textLight.withOpacity(0.3));
+        : (isActive
+            ? AppColors.positive
+            : AppColors.textLight.withOpacity(0.3));
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: isActive ? 80 : 60,
