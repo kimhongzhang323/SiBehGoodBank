@@ -98,6 +98,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                   child: GlassCard(
                     borderRadius: 24,
                     padding: const EdgeInsets.all(32),
+                    backgroundColor: Colors.white, // <--- CHANGED: Set to solid white
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -143,10 +144,9 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                             Expanded(
                               child: SecondaryButton(
                                 text: 'Receipt',
-                                icon: Icons.picture_as_pdf, // Changed icon
+                                icon: Icons.picture_as_pdf,
                                 isLoading: _isSharing,
-                                onPressed:
-                                    _isSharing ? null : _handleViewReceipt,
+                                onPressed: _isSharing ? null : _handleViewReceipt,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -200,18 +200,8 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
 
   String _getMonth(int month) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
   }
