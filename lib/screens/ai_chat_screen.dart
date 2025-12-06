@@ -4,7 +4,9 @@ import '../constants/constants.dart';
 /// AI copilot surface that sits above the home page.
 /// Shows quick reasoning, tool choices, and a chat-style thread.
 class AiChatScreen extends StatelessWidget {
-  const AiChatScreen({super.key});
+  final VoidCallback? onBackToHome;
+  
+  const AiChatScreen({super.key, this.onBackToHome});
 
   @override
   Widget build(BuildContext context) {
@@ -22,13 +24,13 @@ class AiChatScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenPadding,
-            vertical: AppSpacing.lg,
+            vertical: AppSpacing.md,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(theme),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
               Expanded(
                 child: ListView(
                   physics: const BouncingScrollPhysics(),
@@ -78,6 +80,13 @@ class AiChatScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        if (onBackToHome != null)
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: onBackToHome,
+          )
+        else
+          const SizedBox(width: 48),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,36 +367,39 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: Colors.white.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.sm),
-          const Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Give a directive…',
-                border: InputBorder.none,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          border: Border.all(color: Colors.white.withOpacity(0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
+            const SizedBox(width: AppSpacing.sm),
+            const Expanded(
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Give a directive…',
+                  border: InputBorder.none,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
+            const SizedBox(width: AppSpacing.sm),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
-            child: const Icon(Icons.arrow_upward, color: Colors.white),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

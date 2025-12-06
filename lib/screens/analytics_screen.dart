@@ -5,7 +5,9 @@ import '../widgets/widgets.dart';
 
 /// Analytics Dashboard screen with charts and statistics
 class AnalyticsScreen extends StatefulWidget {
-  const AnalyticsScreen({super.key});
+  final VoidCallback? onBackToHome;
+  
+  const AnalyticsScreen({super.key, this.onBackToHome});
 
   @override
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
@@ -97,7 +99,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () {
+              if (widget.onBackToHome != null) {
+                widget.onBackToHome!();
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
             child: Container(
               width: 40,
               height: 40,
