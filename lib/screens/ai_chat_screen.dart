@@ -358,36 +358,41 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(color: Colors.white.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.sm),
-          const Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Give a directive…',
-                border: InputBorder.none,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          border: Border.all(color: Colors.white.withOpacity(0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Give a directive…',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
+            const SizedBox(width: AppSpacing.sm),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
-            child: const Icon(Icons.arrow_upward, color: Colors.white),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
