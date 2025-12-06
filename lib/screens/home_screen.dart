@@ -265,31 +265,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.softGreen,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppColors.headerGradient,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenPadding),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row with avatar, currency switcher (centered), and action buttons
-              SizedBox(
-                height: 40,
-                child: Stack(
-                  children: [
-                    // Left: Avatar
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: GestureDetector(
+              // Top row: Avatar + Currency on left, Icons on right
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Left: Avatar and Currency selector
+                  Row(
+                    children: [
+                      GestureDetector(
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
@@ -298,57 +299,46 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                         child: Container(
-                          width: 40,
-                          height: 40,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white,
+                              color: AppColors.glassWhiteMedium,
                               width: 2,
                             ),
                             image: const DecorationImage(
-                              image: AssetImage(
-                                'assets/images/profile.jpg',
-                              ),
+                              image: AssetImage('assets/images/profile.jpg'),
                               fit: BoxFit.cover,
                             ),
                           ),
                         ),
                       ),
-                    ),
-
-                    // Center: Currency Switcher (absolute center of screen)
-                    Center(
-                      child: GestureDetector(
+                      const SizedBox(width: 12),
+                      GestureDetector(
                         onTap: () => _showCurrencyPicker(context),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: AppColors.glassWhiteLight,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.5)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: BorderRadius.circular(2),
                                 child: Image.asset(
                                   'assets/images/countryFlag/${selectedCurrency.flag}.png',
                                   width: 20,
-                                  height: 15,
+                                  height: 14,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
                                     return Container(
                                       width: 20,
-                                      height: 15,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade300,
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: const Icon(Icons.flag, size: 12),
+                                      height: 14,
+                                      color: Colors.grey.shade400,
                                     );
                                   },
                                 ),
@@ -356,135 +346,131 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 selectedCurrency.code,
-                                style: AppTextStyles.labelMedium.copyWith(
+                                style: const TextStyle(
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                                  color: AppColors.textOnDark,
                                 ),
                               ),
-                              const SizedBox(width: 2),
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 16,
-                                color: AppColors.textPrimary,
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 18,
+                                color: AppColors.textOnDark,
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ),
-
-                    // Right: Notification and Settings buttons
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Notification bell
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NotificationsScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              width: 36,
-                              height: 36,
+                    ],
+                  ),
+                  // Right: Notification and Settings icons (minimal style)
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationsScreen(),
+                            ),
+                          );
+                        },
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                shape: BoxShape.circle,
+                                color: AppColors.glassWhite,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Stack(
-                                children: [
-                                  const Center(
-                                    child: Icon(
-                                      Icons.notifications_outlined,
-                                      color: AppColors.textPrimary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 8,
-                                    right: 9,
-                                    child: Container(
-                                      width: 7,
-                                      height: 7,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.negative,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              child: const Icon(
+                                Icons.notifications_outlined,
+                                color: AppColors.textOnDark,
+                                size: 22,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Settings button
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const SettingsScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.3),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.settings_outlined,
-                                  color: AppColors.textPrimary,
-                                  size: 20,
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: AppColors.negative,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppColors.softNavy,
+                                    width: 1.5,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.glassWhite,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.settings_outlined,
+                            color: AppColors.textOnDark,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
 
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: 32),
 
-              // Total Balance label with hide/show toggle
+              // Balance section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Left: Label and Balance
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Total Balance',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary.withOpacity(0.8),
-                          letterSpacing: 0.5,
+                          color: AppColors.textOnDarkMuted,
+                          letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Container(
-                        width: 40,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: AppColors.accent,
-                          borderRadius: BorderRadius.circular(2),
+                      const SizedBox(height: 8),
+                      Text(
+                        formatAmount(totalBalanceMYR),
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textOnDark,
+                          letterSpacing: 1.5,
+                          height: 1.1,
                         ),
                       ),
                     ],
                   ),
+                  // Right: Eye icon for show/hide
                   GestureDetector(
                     onTap: () {
                       setState(() {
@@ -492,9 +478,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.all(10),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.4),
+                        color: AppColors.glassWhite,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -502,27 +489,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
                         size: 20,
-                        color: AppColors.textPrimary.withOpacity(0.7),
+                        color: AppColors.textOnDarkMuted,
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: AppSpacing.md),
-
-              // Balance amount
-              Text(
-                formatAmount(totalBalanceMYR),
-                style: const TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 1.5,
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: 16),
             ],
           ),
         ),
