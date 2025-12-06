@@ -266,12 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeader(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: AppColors.holographicGradient,
-          stops: AppColors.holographicStops,
-        ),
+        color: AppColors.softGreen,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(32),
           bottomRight: Radius.circular(32),
@@ -595,24 +590,17 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.accent.withOpacity(0.15),
-                  AppColors.softPurple.withOpacity(0.3),
-                ],
-              ),
-              shape: BoxShape.circle,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: AppColors.accent.withOpacity(0.3),
-                width: 2,
+                color: AppColors.accent.withOpacity(0.2),
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.accent.withOpacity(0.2),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: AppColors.accent.withOpacity(0.1),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                   spreadRadius: 0,
                 ),
               ],

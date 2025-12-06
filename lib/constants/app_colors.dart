@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 /// App color palette following a green and cream theme
 class AppColors {
   // Primary green colors
-  static const Color primaryGreen = Color(0xFF2E7D32);
-  static const Color lightGreen = Color(0xFF81C784);
-  static const Color softGreen = Color(0xFFE8F5E9);
-  static const Color mintGreen = Color(0xFFC8E6C9);
+  static const Color primaryGreen = Color(0xFF3D9970); // Muted sage green
+  static const Color darkGreen = Color(0xFF2D7A5E); // Darker muted green
+  static const Color lightGreen = Color(0xFF7CB69D); // Soft light green
+  static const Color softGreen = Color(0xFF5FAD8B); // Pleasant muted green for header
+  static const Color mintGreen = Color(0xFFD4E9DF); // Very soft mint
 
   // Cream colors
   static const Color cream = Color(0xFFFFFBF5);
@@ -17,7 +18,7 @@ class AppColors {
   static const Color lavender = Color(0xFFE8F5E9);
   static const Color pastelBlue = Color(0xFFE8F5E9);
   static const Color pinkTint = Color(0xFFFFF8E7);
-  static const Color softPurple = Color(0xFFC8E6C9);
+  static const Color softPurple = Color(0xFFD4E9DF);
   static const Color lilac = Color(0xFFE8F5E9);
 
   // Extended palette
@@ -33,8 +34,8 @@ class AppColors {
   // Status colors
   static const Color positive = Color(0xFF4CAF50);
   static const Color negative = Color(0xFFE53935);
-  static const Color accent = Color(0xFF2E7D32); // Changed to green
-  static const Color accentBlue = Color(0xFF43A047);
+  static const Color accent = Color(0xFF3D9970); // Muted green accent
+  static const Color accentBlue = Color(0xFF5FAD8B);
 
   // Glass effect colors
   static const Color glassWhite = Color(0x40FFFFFF);
