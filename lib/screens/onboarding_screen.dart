@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'home_screen.dart';
+import 'root_shell.dart';
 
 /// Onboarding / Marketing screen with holographic design
 class OnboardingScreen extends StatelessWidget {
@@ -90,7 +91,7 @@ class OnboardingScreen extends StatelessWidget {
                       onPressed: () {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(),
+                            builder: (context) => const RootShell(),
                           ),
                         );
                       },
