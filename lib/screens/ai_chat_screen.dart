@@ -1,14 +1,18 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../constants/constants.dart';
+import '../services/ai_chat_service.dart';
 
 /// AI copilot surface that sits above the home page.
 /// Shows quick reasoning, tool choices, and a chat-style thread.
 class AiChatScreen extends StatefulWidget {
   final VoidCallback? onBackToHome;
-  
+
   const AiChatScreen({super.key, this.onBackToHome});
 
   @override
@@ -22,20 +26,145 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _isListening = false;
   String _voiceText = '';
   double _soundLevel = 0.0;
-  bool _useSimulatedVoice = true; // Use simulated voice for demo
+  bool _useSimulatedVoice = false; // Set to false to use real voice recognition
   bool _showAttachmentMenu = false;
+
+  // AI Chat Service for backend integration
+  late AiChatService _aiChatService;
+  bool _isAiProcessing = false;
+  bool _useAiBackend = true; // Toggle to enable/disable AI backend
+
+  // Voice Chat Mode (Flutter TTS)
+  bool _voiceChatMode = false; // Whether AI responses should be spoken
+  late FlutterTts _flutterTts;
+  bool _isSpeaking = false;
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _aiChatService = AiChatService(userId: 'user-001');
+    _flutterTts = FlutterTts();
+    _initTts();
+    _checkAiServiceHealth();
+    _initSpeechRecognition();
+  }
+
+  Future<void> _initTts() async {
+    // Configure TTS settings
+    await _flutterTts.setLanguage('en-US');
+    await _flutterTts.setSpeechRate(1.0); // Normal-fast speed (0.0-1.0)
+    await _flutterTts.setVolume(1.0);
+    await _flutterTts.setPitch(1.0);
+    
+    // Set up completion handler
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    });
+    
+    _flutterTts.setErrorHandler((error) {
+      debugPrint('TTS Error: $error');
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    });
+  }
+
+  Future<void> _initSpeechRecognition() async {
+    // Pre-initialize speech recognition
+    try {
+      await _speech.initialize();
+    } catch (e) {
+      debugPrint('Speech init error: $e');
+    }
+  }
+
+  Future<void> _checkAiServiceHealth() async {
+    final isHealthy = await _aiChatService.checkHealth();
+    if (mounted) {
+      setState(() {
+        _useAiBackend = isHealthy;
+      });
+      if (!isHealthy) {
+        debugPrint('AI backend not available, using local fallback');
+      }
+    }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _speech.stop();
+    _aiChatService.dispose();
+    _flutterTts.stop();
     super.dispose();
+  }
+
+  /// Speak text using Flutter TTS (free, offline)
+  Future<void> _speakText(String text) async {
+    if (!_voiceChatMode || text.isEmpty) return;
+
+    setState(() => _isSpeaking = true);
+
+    try {
+      await _flutterTts.speak(text);
+    } catch (e) {
+      debugPrint('TTS error: $e');
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Voice error: $e'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Stop speaking
+  void _stopSpeaking() {
+    _flutterTts.stop();
+    setState(() => _isSpeaking = false);
+  }
+
+  /// Toggle voice chat mode
+  void _toggleVoiceChatMode() {
+    setState(() {
+      _voiceChatMode = !_voiceChatMode;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _voiceChatMode ? Icons.volume_up : Icons.volume_off,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _voiceChatMode
+                  ? 'Voice chat enabled - AI will speak responses'
+                  : 'Voice chat disabled',
+            ),
+          ],
+        ),
+        backgroundColor: _voiceChatMode ? AppColors.positive : AppColors.textSecondary,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _startSimulatedListening(Function(String) onResult) async {
@@ -124,7 +253,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       // Find and update the receipt card message
       for (var msg in _messages) {
-        if (msg['showReceiptCard'] == true && msg['receiptData'] == receiptData) {
+        if (msg['showReceiptCard'] == true &&
+            msg['receiptData'] == receiptData) {
           msg['receiptAction'] = action;
           break;
         }
@@ -169,7 +299,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Future<void> _startListening(Function(String) onResult) async {
     // Request microphone permission first
     final status = await Permission.microphone.request();
-    
+
     if (!status.isGranted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -216,7 +346,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _isListening = true;
         _voiceText = '';
       });
-      
+
       _speech.listen(
         onResult: (result) {
           if (mounted) {
@@ -224,7 +354,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               _voiceText = result.recognizedWords;
             });
           }
-          
+
           if (result.finalResult && _voiceText.isNotEmpty) {
             print('Final result: $_voiceText');
             _speech.stop();
@@ -251,7 +381,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Speech recognition not available. Please check permissions.'),
+            content: Text(
+                'Speech recognition not available. Please check permissions.'),
             backgroundColor: AppColors.negative,
           ),
         );
@@ -283,19 +414,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _processAgentResponse(String userMessage) async {
-    // Simulate agent planning (internal - not shown to user)
-    await Future.delayed(const Duration(milliseconds: 500));
-
     final lowerMessage = userMessage.toLowerCase();
 
+    // Check for specific UI-driven flows first (transfer, withdrawal, bill payment)
+    // These have custom UI components that are better handled locally
+
     // Check for bill payment FIRST (before transfer, since 'payment' might match other keywords)
-    if (lowerMessage.contains('bill') || 
-        (lowerMessage.contains('payment') && !lowerMessage.contains('transfer')) ||
+    if (lowerMessage.contains('bill') ||
+        (lowerMessage.contains('payment') &&
+            !lowerMessage.contains('transfer')) ||
         lowerMessage.contains('pay bill') ||
         lowerMessage.contains('账单') ||
         lowerMessage.contains('付款') ||
         lowerMessage.contains('缴费')) {
-      
       // Step 1: Show processing
       setState(() {
         _messages.add({
@@ -320,13 +451,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       });
       _scrollToBottom();
-
-    } else if (lowerMessage.contains('transfer') || 
+    } else if (lowerMessage.contains('transfer') ||
         lowerMessage.contains('send') ||
         lowerMessage.contains('转账') ||
         lowerMessage.contains('转') ||
         lowerMessage.contains('汇款')) {
-      
       // Step 1: Show processing
       setState(() {
         _messages.add({
@@ -352,11 +481,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       });
       _scrollToBottom();
-
-    } else if (lowerMessage.contains('cash') || 
-               lowerMessage.contains('withdrawal') ||
-               lowerMessage.contains('withdraw')) {
-      
+    } else if (lowerMessage.contains('cash') ||
+        lowerMessage.contains('withdrawal') ||
+        lowerMessage.contains('withdraw')) {
       // Step 1: Show processing
       setState(() {
         _messages.add({
@@ -381,16 +508,93 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
       });
       _scrollToBottom();
-
     } else {
+      // For all other queries, use the AI backend if available
+      await _sendToAiBackend(userMessage);
+    }
+  }
+
+  /// Send message to AI backend and handle response
+  Future<void> _sendToAiBackend(String userMessage) async {
+    if (!_useAiBackend) {
+      // Fallback response when AI backend is not available
       setState(() {
         _messages.add({
           'speaker': 'Agent',
-          'message': 'I can help you with transfers, cash withdrawals, bill payments, and more. Try asking "Transfer money", "Cash withdrawal", or "Bill payment".',
+          'message':
+              'I can help you with transfers, cash withdrawals, bill payments, and more. Try asking "Transfer money", "Cash withdrawal", or "Bill payment".',
           'alignment': Alignment.centerLeft,
         });
       });
       _scrollToBottom();
+      return;
+    }
+
+    // Show typing indicator
+    setState(() {
+      _isAiProcessing = true;
+      _messages.add({
+        'speaker': 'Agent',
+        'message': '🤔 Thinking...',
+        'alignment': Alignment.centerLeft,
+        'isProcessing': true,
+      });
+    });
+    _scrollToBottom();
+
+    try {
+      final response = await _aiChatService.sendMessage(userMessage);
+
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message': response.message,
+            'alignment': Alignment.centerLeft,
+            'chartImages': response.chartImages, // Include chart images if any
+          });
+        });
+        _scrollToBottom();
+
+        // Speak the TLDR response if voice chat mode is enabled
+        // Use TLDR for shorter, more natural speech output
+        if (_voiceChatMode) {
+          final textToSpeak = response.tldr ?? response.message;
+          if (textToSpeak.isNotEmpty) {
+            _speakText(textToSpeak);
+          }
+        }
+      }
+    } on AiChatException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message':
+                '❌ Sorry, I encountered an error: ${e.message}. Please try again.',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAiProcessing = false;
+          _messages.removeLast(); // Remove thinking indicator
+          _messages.add({
+            'speaker': 'Agent',
+            'message':
+                'I can help you with transfers, cash withdrawals, bill payments, and more. Try asking "Transfer money", "Cash withdrawal", or "Bill payment".',
+            'alignment': Alignment.centerLeft,
+          });
+        });
+        _scrollToBottom();
+      }
     }
   }
 
@@ -517,7 +721,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _messages.add({
         'speaker': 'Agent',
-        'message': '💰 You selected ${account['name']}. How much would you like to withdraw?',
+        'message':
+            '💰 You selected ${account['name']}. How much would you like to withdraw?',
         'alignment': Alignment.centerLeft,
         'showWithdrawalAmountSelection': true,
         'selectedAccount': account,
@@ -526,7 +731,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
   }
 
-  void _handleWithdrawalAmountSelection(String amount, Map<String, String> account) async {
+  void _handleWithdrawalAmountSelection(
+      String amount, Map<String, String> account) async {
     // Show branch selection after amount is chosen
     setState(() {
       _messages.add({
@@ -541,14 +747,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
   }
 
-  void _handleBranchSelection(Map<String, dynamic> branchData, String amount, Map<String, String> account) async {
+  void _handleBranchSelection(Map<String, dynamic> branchData, String amount,
+      Map<String, String> account) async {
     // Show biometric verification sheet
     _showBiometricVerification(
       onSuccess: () async {
         setState(() {
           _messages.add({
             'speaker': 'Agent',
-            'message': '✓ Verification successful! Generating withdrawal QR code...',
+            'message':
+                '✓ Verification successful! Generating withdrawal QR code...',
             'alignment': Alignment.centerLeft,
           });
         });
@@ -558,10 +766,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
         // Generate withdrawal QR code
         final now = DateTime.now();
-        final originalBalance = double.tryParse(account['balance']?.replaceAll(',', '') ?? '5000') ?? 5000.0;
-        final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+        final originalBalance = double.tryParse(
+                account['balance']?.replaceAll(',', '') ?? '5000') ??
+            5000.0;
+        final withdrawalAmount = double.tryParse(
+                amount.replaceAll('RM', '').replaceAll(',', '').trim()) ??
+            0.0;
         final newBalance = originalBalance - withdrawalAmount;
-        final transactionId = 'WD${now.millisecondsSinceEpoch.toString().substring(7)}';
+        final transactionId =
+            'WD${now.millisecondsSinceEpoch.toString().substring(7)}';
         final qrCode = 'SGB-${transactionId}-${branchData['atmId']}';
 
         final withdrawalData = {
@@ -574,10 +787,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
           'originalBalance': originalBalance,
           'newBalance': newBalance,
           'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
-          'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+          'time':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
           'transactionId': transactionId,
           'qrCode': qrCode,
-          'googleMapsUrl': 'https://www.google.com/maps/search/?api=1&query=${branchData['lat']},${branchData['lng']}',
+          'googleMapsUrl':
+              'https://www.google.com/maps/search/?api=1&query=${branchData['lat']},${branchData['lng']}',
           'status': 'pending', // pending, collected
         };
 
@@ -596,7 +811,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         setState(() {
           _messages.add({
             'speaker': 'Agent',
-            'message': '❌ Verification cancelled. Withdrawal was not processed.',
+            'message':
+                '❌ Verification cancelled. Withdrawal was not processed.',
             'alignment': Alignment.centerLeft,
           });
         });
@@ -616,7 +832,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         'withdrawalData': {
           ...withdrawalData,
           'status': 'collected',
-          'collectionTime': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+          'collectionTime':
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
         },
       });
     });
@@ -641,7 +858,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       setState(() {
         _messages.add({
           'speaker': 'Agent',
-          'message': '💳 You selected $bank. How much would you like to withdraw?',
+          'message':
+              '💳 You selected $bank. How much would you like to withdraw?',
           'alignment': Alignment.centerLeft,
           'showWithdrawalAmountInput': true,
           'selectedBank': bank,
@@ -669,7 +887,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         // Generate withdrawal receipt
         final now = DateTime.now();
         final originalBalance = 5000.00;
-        final withdrawalAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+        final withdrawalAmount = double.tryParse(
+                amount.replaceAll('RM', '').replaceAll(',', '').trim()) ??
+            0.0;
         final newBalance = originalBalance - withdrawalAmount;
 
         setState(() {
@@ -684,8 +904,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
               'originalBalance': originalBalance,
               'newBalance': newBalance,
               'date': '${now.day} ${_getMonthName(now.month)} ${now.year}',
-              'time': '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
-              'transactionId': 'WD${now.millisecondsSinceEpoch.toString().substring(7)}',
+              'time':
+                  '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+              'transactionId':
+                  'WD${now.millisecondsSinceEpoch.toString().substring(7)}',
             },
           });
         });
@@ -695,7 +917,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         setState(() {
           _messages.add({
             'speaker': 'Agent',
-            'message': '❌ Verification cancelled. Withdrawal was not processed.',
+            'message':
+                '❌ Verification cancelled. Withdrawal was not processed.',
             'alignment': Alignment.centerLeft,
           });
         });
@@ -705,8 +928,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   String _getMonthName(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month - 1];
   }
 
@@ -715,7 +950,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _messages.add({
         'speaker': 'Agent',
-        'message': '💳 Bank card verified. How much would you like to withdraw?',
+        'message':
+            '💳 Bank card verified. How much would you like to withdraw?',
         'alignment': Alignment.centerLeft,
         'showWithdrawalAmountInput': true,
         'selectedBank': bankData['bankName']!,
@@ -724,11 +960,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
   }
 
-  void _handleWithdrawalReceiptAction(String action, Map<String, dynamic> withdrawalData) {
+  void _handleWithdrawalReceiptAction(
+      String action, Map<String, dynamic> withdrawalData) {
     setState(() {
       // Find and update the receipt message
       for (var msg in _messages) {
-        if (msg['showWithdrawalReceipt'] == true && msg['withdrawalData'] == withdrawalData) {
+        if (msg['showWithdrawalReceipt'] == true &&
+            msg['withdrawalData'] == withdrawalData) {
           msg['receiptAction'] = action;
           break;
         }
@@ -791,8 +1029,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   void _handleBillProviderSelection(String provider, String category) async {
     // Generate random bill amount
     final random = Random();
-    final billAmount = (random.nextInt(400) + 50).toDouble(); // Random amount between RM50-RM450
-    
+    final billAmount = (random.nextInt(400) + 50)
+        .toDouble(); // Random amount between RM50-RM450
+
     // Generate due date (7-30 days from now)
     final dueDate = DateTime.now().add(Duration(days: random.nextInt(24) + 7));
 
@@ -810,7 +1049,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _messages.add({
         'speaker': 'Agent',
-        'message': '💵 Total amount due: RM ${billAmount.toStringAsFixed(2)}\n📅 Due date: ${dueDate.day}/${dueDate.month}/${dueDate.year}',
+        'message':
+            '💵 Total amount due: RM ${billAmount.toStringAsFixed(2)}\n📅 Due date: ${dueDate.day}/${dueDate.month}/${dueDate.year}',
         'alignment': Alignment.centerLeft,
       });
     });
@@ -833,17 +1073,22 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
   }
 
-  void _handleBillPayment(String amount, String billType, double totalBillAmount, {String? dueDate}) async {
-    final paymentAmount = double.tryParse(amount.replaceAll('RM', '').replaceAll(',', '').trim()) ?? 0.0;
+  void _handleBillPayment(
+      String amount, String billType, double totalBillAmount,
+      {String? dueDate}) async {
+    final paymentAmount = double.tryParse(
+            amount.replaceAll('RM', '').replaceAll(',', '').trim()) ??
+        0.0;
     final remaining = totalBillAmount - paymentAmount;
     final isPaidInFull = remaining <= 0.01;
-    
+
     // Parse due date
     DateTime? dueDateParsed;
     if (dueDate != null) {
       dueDateParsed = DateTime.tryParse(dueDate);
     }
-    dueDateParsed ??= DateTime.now().add(const Duration(days: 14)); // Default 14 days
+    dueDateParsed ??=
+        DateTime.now().add(const Duration(days: 14)); // Default 14 days
 
     // Show biometric verification
     _showBiometricVerification(
@@ -861,13 +1106,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
         // Generate receipt data
         final now = DateTime.now();
-        final transactionId = 'BP${now.millisecondsSinceEpoch.toString().substring(7)}';
+        final transactionId =
+            'BP${now.millisecondsSinceEpoch.toString().substring(7)}';
 
         // Show receipt (NO LOOP - just show the receipt with remaining balance info)
         setState(() {
           _messages.add({
             'speaker': 'Agent',
-            'message': isPaidInFull ? '✓ Payment completed!' : '✓ Partial payment received!',
+            'message': isPaidInFull
+                ? '✓ Payment completed!'
+                : '✓ Partial payment received!',
             'alignment': Alignment.centerLeft,
             'showBillReceipt': true,
             'billData': {
@@ -876,7 +1124,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
               'totalAmount': totalBillAmount,
               'remaining': remaining,
               'transactionId': transactionId,
-              'dueDate': '${dueDateParsed!.day}/${dueDateParsed.month}/${dueDateParsed.year}',
+              'dueDate':
+                  '${dueDateParsed!.day}/${dueDateParsed.month}/${dueDateParsed.year}',
               'isPaidInFull': isPaidInFull,
             },
           });
@@ -896,7 +1145,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  void _handleBillPaymentLegacy(String amount, String billType, double totalBillAmount) async {
+  void _handleBillPaymentLegacy(
+      String amount, String billType, double totalBillAmount) async {
     // Legacy method kept for backwards compatibility
     _handleBillPayment(amount, billType, totalBillAmount);
   }
@@ -937,7 +1187,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -946,7 +1197,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 textColor: AppColors.textPrimary,
                               ),
                             ),
-                            _ToolSelectionGrid(onToolSelected: _handleToolSelection),
+                            _ToolSelectionGrid(
+                                onToolSelected: _handleToolSelection),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
@@ -955,7 +1207,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -966,7 +1219,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                             _TransferForm(
                               tool: msg['selectedTool'],
-                              onSubmit: (data) => _handleFormSubmit(data, msg['selectedTool']),
+                              onSubmit: (data) =>
+                                  _handleFormSubmit(data, msg['selectedTool']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -976,7 +1230,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -988,7 +1243,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             _TransferSummaryCard(
                               formData: msg['formData'],
                               tool: msg['selectedTool'],
-                              onApprove: () => _handleApproval(msg['formData'], msg['selectedTool']),
+                              onApprove: () => _handleApproval(
+                                  msg['formData'], msg['selectedTool']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -998,7 +1254,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1019,7 +1276,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1031,7 +1289,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             _ReceiptAnalysisCard(
                               receiptData: msg['receiptData'],
                               action: msg['receiptAction'],
-                              onAction: (action) => _handleReceiptAction(action, msg['receiptData']),
+                              onAction: (action) => _handleReceiptAction(
+                                  action, msg['receiptData']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1041,7 +1300,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1050,16 +1310,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 textColor: AppColors.textPrimary,
                               ),
                             ),
-                            _WithdrawalBankGrid(onBankSelected: _handleWithdrawalBankSelection),
+                            _WithdrawalBankGrid(
+                                onBankSelected: _handleWithdrawalBankSelection),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
-                      } else if (msg['showWithdrawalAccountSelection'] == true) {
+                      } else if (msg['showWithdrawalAccountSelection'] ==
+                          true) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1068,7 +1331,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 textColor: AppColors.textPrimary,
                               ),
                             ),
-                            _WithdrawalAccountGrid(onAccountSelected: _handleWithdrawalAccountSelection),
+                            _WithdrawalAccountGrid(
+                                onAccountSelected:
+                                    _handleWithdrawalAccountSelection),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
@@ -1077,7 +1342,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1088,7 +1354,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                             _WithdrawalAmountSelector(
                               account: msg['selectedAccount'],
-                              onAmountSelected: (amount) => _handleWithdrawalAmountSelection(amount, msg['selectedAccount']),
+                              onAmountSelected: (amount) =>
+                                  _handleWithdrawalAmountSelection(
+                                      amount, msg['selectedAccount']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1098,7 +1366,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1108,9 +1377,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               ),
                             ),
                             _BranchSelector(
-                              onBranchSelected: (branch) => _handleBranchSelection(
-                                branch, 
-                                msg['selectedAmount'], 
+                              onBranchSelected: (branch) =>
+                                  _handleBranchSelection(
+                                branch,
+                                msg['selectedAmount'],
                                 msg['selectedAccount'],
                               ),
                             ),
@@ -1122,7 +1392,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1140,7 +1411,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1151,7 +1423,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                             _WithdrawalAmountInput(
                               bank: msg['selectedBank'],
-                              onSubmit: (amount) => _handleWithdrawalAmount(amount, msg['selectedBank']),
+                              onSubmit: (amount) => _handleWithdrawalAmount(
+                                  amount, msg['selectedBank']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1161,7 +1434,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1172,7 +1446,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                             _WithdrawalQRCard(
                               withdrawalData: msg['withdrawalData'],
-                              onCollected: () => _handleWithdrawalCollected(msg['withdrawalData']),
+                              onCollected: () => _handleWithdrawalCollected(
+                                  msg['withdrawalData']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1182,7 +1457,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1194,7 +1470,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             _WithdrawalReceipt(
                               withdrawalData: msg['withdrawalData'],
                               action: msg['receiptAction'],
-                              onAction: (action) => _handleWithdrawalReceiptAction(action, msg['withdrawalData']),
+                              onAction: (action) =>
+                                  _handleWithdrawalReceiptAction(
+                                      action, msg['withdrawalData']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1204,7 +1482,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1217,11 +1496,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               padding: const EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
                                 color: AppColors.glassWhiteLight,
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.radiusLg),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.3)),
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.radiusMd),
                                 child: Image.asset(
                                   'assets/images/invoice.webp',
                                   fit: BoxFit.contain,
@@ -1231,14 +1513,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                       width: double.infinity,
                                       decoration: BoxDecoration(
                                         color: AppColors.cardBackground,
-                                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                        borderRadius: BorderRadius.circular(
+                                            AppSpacing.radiusMd),
                                       ),
                                       child: const Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.receipt_long, size: 48, color: AppColors.textSecondary),
+                                          Icon(Icons.receipt_long,
+                                              size: 48,
+                                              color: AppColors.textSecondary),
                                           SizedBox(height: 8),
-                                          Text('Invoice Image', style: TextStyle(color: AppColors.textSecondary)),
+                                          Text('Invoice Image',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary)),
                                         ],
                                       ),
                                     );
@@ -1254,7 +1543,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1263,7 +1553,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 textColor: AppColors.textPrimary,
                               ),
                             ),
-                            _BillCategoryGrid(onCategorySelected: _handleBillTypeSelection),
+                            _BillCategoryGrid(
+                                onCategorySelected: _handleBillTypeSelection),
                             const SizedBox(height: AppSpacing.md),
                           ],
                         );
@@ -1272,7 +1563,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1283,7 +1575,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                             _BillProviderGrid(
                               category: msg['billCategory'],
-                              onProviderSelected: (provider) => _handleBillProviderSelection(provider, msg['billCategory']),
+                              onProviderSelected: (provider) =>
+                                  _handleBillProviderSelection(
+                                      provider, msg['billCategory']),
                             ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -1293,7 +1587,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1307,8 +1602,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               totalAmount: msg['billAmount'],
                               dueDate: msg['billDueDate'],
                               onSubmit: (amount) => _handleBillPayment(
-                                amount, 
-                                msg['selectedBillType'], 
+                                amount,
+                                msg['selectedBillType'],
                                 msg['billAmount'],
                                 dueDate: msg['billDueDate'],
                               ),
@@ -1321,7 +1616,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: _MessageBubble(
                                 speaker: msg['speaker'],
                                 message: msg['message'],
@@ -1343,10 +1639,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             speaker: msg['speaker'],
                             message: msg['message'],
                             alignment: msg['alignment'],
-                            bubbleColor: msg['alignment'] == Alignment.centerRight
-                                ? Colors.white
-                                : AppColors.glassWhiteLight,
+                            bubbleColor:
+                                msg['alignment'] == Alignment.centerRight
+                                    ? Colors.white
+                                    : AppColors.glassWhiteLight,
                             textColor: AppColors.textPrimary,
+                            chartImages: msg['chartImages'] != null
+                                ? List<String>.from(msg['chartImages'])
+                                : null,
                           ),
                         );
                       }
@@ -1373,9 +1673,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.accent,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.md),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.radiusMd),
                               ),
                             ),
                           ),
@@ -1389,9 +1691,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.accentBlue,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.md),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                                borderRadius:
+                                    BorderRadius.circular(AppSpacing.radiusMd),
                               ),
                             ),
                           ),
@@ -1408,9 +1712,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.positive,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.md),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusMd),
                           ),
                         ),
                       ),
@@ -1423,11 +1729,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 isListening: _isListening,
                 voiceText: _voiceText,
                 soundLevel: _soundLevel,
-                onVoiceStart: () => _startSimulatedListening(_handleUserMessage),
-                onVoiceStop: _stopSimulatedListening,
+                onVoiceStart: () {
+                  // Use real voice recognition
+                  if (_useSimulatedVoice) {
+                    _startSimulatedListening(_handleUserMessage);
+                  } else {
+                    _startListening(_handleUserMessage);
+                  }
+                },
+                onVoiceStop: () {
+                  if (_useSimulatedVoice) {
+                    _stopSimulatedListening();
+                  } else {
+                    _stopListening();
+                  }
+                },
                 showAttachmentMenu: _showAttachmentMenu,
                 onToggleAttachment: _toggleAttachmentMenu,
                 onReceiptUpload: _handleReceiptUpload,
+                voiceChatMode: _voiceChatMode,
+                isSpeaking: _isSpeaking,
+                onStopSpeaking: _stopSpeaking,
               ),
             ],
           ),
@@ -1459,18 +1781,95 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Autonomous agent that reasons, calls tools, and executes tasks.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Autonomous agent that reasons, calls tools, and executes tasks.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sm),
+        // Voice Chat Mode Toggle
+        GestureDetector(
+          onTap: _toggleVoiceChatMode,
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: _voiceChatMode
+                  ? AppColors.accent.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              border: _voiceChatMode
+                  ? Border.all(color: AppColors.accent, width: 2)
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _voiceChatMode ? Icons.volume_up : Icons.volume_off,
+                  color: _voiceChatMode ? AppColors.accent : AppColors.textSecondary,
+                  size: 20,
+                ),
+                if (_isSpeaking) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        // More options menu
+        PopupMenuButton<String>(
+          icon: Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            ),
+            child: const Icon(
+              Icons.more_vert,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
+          ),
+          onSelected: (value) {
+            if (value == 'clear') {
+              _clearChat();
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'clear',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, color: AppColors.negative),
+                  SizedBox(width: 8),
+                  Text('Clear Chat History'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: AppSpacing.xs),
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
           decoration: BoxDecoration(
@@ -1486,6 +1885,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
       ],
     );
   }
+
+  /// Clear chat history
+  void _clearChat() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Chat History'),
+        content: const Text('This will clear all messages and start a fresh conversation. Continue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _messages.clear();
+                _messages.add({
+                  'speaker': 'Agent',
+                  'message': "Hello! I'm your SiBeh Good Bank AI assistant. How can I help you today?",
+                  'alignment': Alignment.centerLeft,
+                });
+              });
+              // Also clear backend history
+              _aiChatService.clearHistory();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Chat history cleared'),
+                  backgroundColor: AppColors.positive,
+                ),
+              );
+            },
+            child: const Text('Clear', style: TextStyle(color: AppColors.negative)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ToolSelectionGrid extends StatelessWidget {
@@ -1496,10 +1934,26 @@ class _ToolSelectionGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tools = [
-      {'name': 'Touch n Go (TNG)', 'icon': Icons.phone_android, 'color': AppColors.accent},
-      {'name': 'CIMB Bank', 'icon': Icons.account_balance, 'color': AppColors.accentBlue},
-      {'name': 'Maybank', 'icon': Icons.account_balance, 'color': AppColors.positive},
-      {'name': 'Public Bank', 'icon': Icons.account_balance, 'color': Color(0xFFFF6B9D)},
+      {
+        'name': 'Touch n Go (TNG)',
+        'icon': Icons.phone_android,
+        'color': AppColors.accent
+      },
+      {
+        'name': 'CIMB Bank',
+        'icon': Icons.account_balance,
+        'color': AppColors.accentBlue
+      },
+      {
+        'name': 'Maybank',
+        'icon': Icons.account_balance,
+        'color': AppColors.positive
+      },
+      {
+        'name': 'Public Bank',
+        'icon': Icons.account_balance,
+        'color': Color(0xFFFF6B9D)
+      },
     ];
 
     return Container(
@@ -1522,63 +1976,66 @@ class _ToolSelectionGrid extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           ...tools.map((tool) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => onToolSelected(tool['name'] as String),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: (tool['color'] as Color).withOpacity(0.15),
-                  foregroundColor: tool['color'] as Color,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.md,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                    side: BorderSide(
-                      color: (tool['color'] as Color).withOpacity(0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                  elevation: 0,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: (tool['color'] as Color).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => onToolSelected(tool['name'] as String),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          (tool['color'] as Color).withOpacity(0.15),
+                      foregroundColor: tool['color'] as Color,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.md,
                       ),
-                      child: Icon(
-                        tool['icon'] as IconData,
-                        color: tool['color'] as Color,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text(
-                        tool['name'] as String,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
+                        side: BorderSide(
+                          color: (tool['color'] as Color).withOpacity(0.4),
+                          width: 1.5,
                         ),
                       ),
+                      elevation: 0,
                     ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: (tool['color'] as Color),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: (tool['color'] as Color).withOpacity(0.2),
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusSm),
+                          ),
+                          child: Icon(
+                            tool['icon'] as IconData,
+                            color: tool['color'] as Color,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Text(
+                            tool['name'] as String,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: (tool['color'] as Color),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          )),
+              )),
         ],
       ),
     );
@@ -1601,16 +2058,23 @@ class _TransferFormState extends State<_TransferForm> {
   final _accountNumberController = TextEditingController();
   final _reasonController = TextEditingController();
   final _searchController = TextEditingController();
-  
+
   String _selectedTransferType = 'DuitNow';
   String? _selectedPresetAmount;
   Map<String, String>? _selectedRecipient;
   bool _showNewRecipientForm = false;
   String? _selectedBank;
   String _searchQuery = '';
-  
-  static const List<String> _quickAmounts = ['50', '100', '200', '500', '1000', '2000'];
-  
+
+  static const List<String> _quickAmounts = [
+    '50',
+    '100',
+    '200',
+    '500',
+    '1000',
+    '2000'
+  ];
+
   // Recent transfer accounts (mock data - in real app, this would come from backend)
   static const List<Map<String, String>> _recentRecipients = [
     {
@@ -1653,21 +2117,46 @@ class _TransferFormState extends State<_TransferForm> {
 
   // All Malaysian banks list
   static const List<String> _allBanks = [
-    'Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank', 'AmBank',
-    'Bank Islam', 'Bank Muamalat', 'Bank Rakyat', 'BSN', 'Affin Bank', 'Alliance Bank',
-    'MBSB Bank', 'Agrobank', 'HSBC', 'Standard Chartered', 'OCBC Bank', 'UOB', 'Citibank',
-    'Maybank Islamic', 'CIMB Islamic', 'Public Islamic Bank', 'RHB Islamic',
-    'Hong Leong Islamic', 'AmBank Islamic', 'GXBank', 'Boost Bank', 'AEON Bank', 'GoBank',
+    'Maybank',
+    'CIMB Bank',
+    'Public Bank',
+    'RHB Bank',
+    'Hong Leong Bank',
+    'AmBank',
+    'Bank Islam',
+    'Bank Muamalat',
+    'Bank Rakyat',
+    'BSN',
+    'Affin Bank',
+    'Alliance Bank',
+    'MBSB Bank',
+    'Agrobank',
+    'HSBC',
+    'Standard Chartered',
+    'OCBC Bank',
+    'UOB',
+    'Citibank',
+    'Maybank Islamic',
+    'CIMB Islamic',
+    'Public Islamic Bank',
+    'RHB Islamic',
+    'Hong Leong Islamic',
+    'AmBank Islamic',
+    'GXBank',
+    'Boost Bank',
+    'AEON Bank',
+    'GoBank',
   ];
 
   List<Map<String, String>> get _filteredRecipients {
     if (_searchQuery.isEmpty) return _recentRecipients;
     final query = _searchQuery.toLowerCase();
-    return _recentRecipients.where((r) =>
-        r['name']!.toLowerCase().contains(query) ||
-        r['bank']!.toLowerCase().contains(query) ||
-        r['accountNumber']!.contains(query)
-    ).toList();
+    return _recentRecipients
+        .where((r) =>
+            r['name']!.toLowerCase().contains(query) ||
+            r['bank']!.toLowerCase().contains(query) ||
+            r['accountNumber']!.contains(query))
+        .toList();
   }
 
   @override
@@ -1703,7 +2192,7 @@ class _TransferFormState extends State<_TransferForm> {
   void _submit() {
     String amount = _selectedPresetAmount ?? _amountController.text;
     if (amount.isEmpty) return;
-    
+
     if (_selectedRecipient != null) {
       widget.onSubmit({
         'amount': amount,
@@ -1711,7 +2200,8 @@ class _TransferFormState extends State<_TransferForm> {
         'accountNumber': _selectedRecipient!['accountNumber']!,
         'bank': _selectedRecipient!['bank']!,
         'transferType': _selectedTransferType,
-        'reason': _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
+        'reason':
+            _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
       });
     } else if (_showNewRecipientForm) {
       if (_recipientController.text.isEmpty ||
@@ -1725,7 +2215,8 @@ class _TransferFormState extends State<_TransferForm> {
         'accountNumber': _accountNumberController.text,
         'bank': _selectedBank!,
         'transferType': _selectedTransferType,
-        'reason': _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
+        'reason':
+            _reasonController.text.isEmpty ? 'Payment' : _reasonController.text,
       });
     }
   }
@@ -1749,19 +2240,20 @@ class _TransferFormState extends State<_TransferForm> {
             // Show selected recipient or new recipient form
             _buildSelectedRecipientOrForm(),
             const SizedBox(height: AppSpacing.lg),
-            
+
             // Step 2: Transfer Type
             _buildTransferTypeSection(),
             const SizedBox(height: AppSpacing.lg),
-            
+
             // Step 3: Amount Selection
             _buildAmountSection(),
             const SizedBox(height: AppSpacing.md),
-            
+
             // Step 4: Description
-            _buildTextField('Description (Optional)', _reasonController, TextInputType.text),
+            _buildTextField('Description (Optional)', _reasonController,
+                TextInputType.text),
             const SizedBox(height: AppSpacing.lg),
-            
+
             // Submit Button
             SizedBox(
               width: double.infinity,
@@ -1775,7 +2267,9 @@ class _TransferFormState extends State<_TransferForm> {
                     borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   ),
                 ),
-                child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                child: const Text('Continue',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -1797,14 +2291,15 @@ class _TransferFormState extends State<_TransferForm> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        
+
         // Search field
         TextField(
           controller: _searchController,
           onChanged: (value) => setState(() => _searchQuery = value),
           decoration: InputDecoration(
             hintText: 'Search by name, bank, or account...',
-            prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
+            prefixIcon: const Icon(Icons.search,
+                color: AppColors.textSecondary, size: 20),
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear, size: 18),
@@ -1829,7 +2324,7 @@ class _TransferFormState extends State<_TransferForm> {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        
+
         // Recent recipients list
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 280),
@@ -1840,7 +2335,9 @@ class _TransferFormState extends State<_TransferForm> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.search_off, size: 40, color: AppColors.textSecondary.withOpacity(0.5)),
+                        Icon(Icons.search_off,
+                            size: 40,
+                            color: AppColors.textSecondary.withOpacity(0.5)),
                         const SizedBox(height: AppSpacing.sm),
                         const Text(
                           'No matching accounts found',
@@ -1859,18 +2356,19 @@ class _TransferFormState extends State<_TransferForm> {
                   },
                 ),
         ),
-        
+
         const SizedBox(height: AppSpacing.md),
         const Divider(),
         const SizedBox(height: AppSpacing.sm),
-        
+
         // Other / New Recipient button
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _showOtherRecipientForm,
             icon: const Icon(Icons.person_add, size: 20),
-            label: const Text('Transfer to New Recipient', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: const Text('Transfer to New Recipient',
+                style: TextStyle(fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.accent,
               side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
@@ -2046,7 +2544,7 @@ class _TransferFormState extends State<_TransferForm> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Bank Selection Dropdown
           const Text(
             'Select Bank',
@@ -2070,18 +2568,22 @@ class _TransferFormState extends State<_TransferForm> {
                 hint: const Text('Choose bank'),
                 isExpanded: true,
                 icon: const Icon(Icons.keyboard_arrow_down),
-                items: _allBanks.map((bank) => DropdownMenuItem(
-                  value: bank,
-                  child: Text(bank),
-                )).toList(),
+                items: _allBanks
+                    .map((bank) => DropdownMenuItem(
+                          value: bank,
+                          child: Text(bank),
+                        ))
+                    .toList(),
                 onChanged: (value) => setState(() => _selectedBank = value),
               ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          _buildTextField('Recipient Name', _recipientController, TextInputType.name),
+          _buildTextField(
+              'Recipient Name', _recipientController, TextInputType.name),
           const SizedBox(height: AppSpacing.md),
-          _buildTextField('Account Number', _accountNumberController, TextInputType.number),
+          _buildTextField(
+              'Account Number', _accountNumberController, TextInputType.number),
         ],
       );
     }
@@ -2131,48 +2633,51 @@ class _TransferFormState extends State<_TransferForm> {
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
-          children: _quickAmounts.map((amount) => GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedPresetAmount = amount;
-                _amountController.clear();
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: _selectedPresetAmount == amount 
-                    ? AppColors.accent 
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                border: Border.all(
-                  color: _selectedPresetAmount == amount 
-                      ? AppColors.accent 
-                      : Colors.grey.shade300,
-                ),
-              ),
-              child: Text(
-                'RM $amount',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _selectedPresetAmount == amount 
-                      ? Colors.white 
-                      : AppColors.textPrimary,
-                ),
-              ),
-            ),
-          )).toList(),
+          children: _quickAmounts
+              .map((amount) => GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedPresetAmount = amount;
+                        _amountController.clear();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedPresetAmount == amount
+                            ? AppColors.accent
+                            : Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
+                        border: Border.all(
+                          color: _selectedPresetAmount == amount
+                              ? AppColors.accent
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Text(
+                        'RM $amount',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _selectedPresetAmount == amount
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
         ),
         const SizedBox(height: AppSpacing.md),
         _buildAmountField(),
       ],
     );
   }
-  
+
   Widget _buildAmountField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2226,7 +2731,8 @@ class _TransferFormState extends State<_TransferForm> {
     return GestureDetector(
       onTap: () => setState(() => _selectedTransferType = type),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.md, horizontal: AppSpacing.sm),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.accent.withOpacity(0.1) : Colors.white,
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -2258,7 +2764,8 @@ class _TransferFormState extends State<_TransferForm> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, TextInputType type) {
+  Widget _buildTextField(
+      String label, TextEditingController controller, TextInputType type) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2358,7 +2865,8 @@ class _TransferSummaryCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ),
-              child: const Text('Approve Transfer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: const Text('Approve Transfer',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -2410,14 +2918,16 @@ class _TransferReceipt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final transactionId = 'TXN${now.millisecondsSinceEpoch.toString().substring(7)}';
-    
+    final transactionId =
+        'TXN${now.millisecondsSinceEpoch.toString().substring(7)}';
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.positive.withOpacity(0.3), width: 2),
+        border:
+            Border.all(color: AppColors.positive.withOpacity(0.3), width: 2),
         boxShadow: [
           BoxShadow(
             color: AppColors.positive.withOpacity(0.15),
@@ -2435,7 +2945,8 @@ class _TransferReceipt extends StatelessWidget {
               color: AppColors.positive.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_circle, color: AppColors.positive, size: 36),
+            child: const Icon(Icons.check_circle,
+                color: AppColors.positive, size: 36),
           ),
           const SizedBox(height: AppSpacing.md),
           const Text(
@@ -2464,18 +2975,23 @@ class _TransferReceipt extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildRow('Amount', 'RM ${formData['amount']}', isHighlight: true),
+                _buildRow('Amount', 'RM ${formData['amount']}',
+                    isHighlight: true),
                 const Divider(height: AppSpacing.lg),
                 _buildRow('Method', tool),
-                if (formData['transferType'] != null && formData['transferType']!.isNotEmpty)
+                if (formData['transferType'] != null &&
+                    formData['transferType']!.isNotEmpty)
                   _buildRow('Transfer Type', formData['transferType']!),
                 _buildRow('Recipient', formData['recipient'] ?? ''),
-                if (formData['accountNumber'] != null && formData['accountNumber']!.isNotEmpty)
+                if (formData['accountNumber'] != null &&
+                    formData['accountNumber']!.isNotEmpty)
                   _buildRow('Account No.', formData['accountNumber']!),
                 _buildRow('Phone', formData['phone'] ?? ''),
-                if (formData['description'] != null && formData['description']!.isNotEmpty)
+                if (formData['description'] != null &&
+                    formData['description']!.isNotEmpty)
                   _buildRow('Description', formData['description']!),
-                _buildRow('Date', '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}'),
+                _buildRow('Date',
+                    '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}'),
               ],
             ),
           ),
@@ -2551,7 +3067,8 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                   color: AppColors.accent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                 ),
-                child: const Icon(Icons.receipt_long, color: AppColors.accent, size: 24),
+                child: const Icon(Icons.receipt_long,
+                    color: AppColors.accent, size: 24),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -2579,7 +3096,7 @@ class _ReceiptAnalysisCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Items purchased
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -2599,29 +3116,30 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                ...((receiptData['items'] as List?) ?? []).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        item['name'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        item['price'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
+                ...((receiptData['items'] as List?) ?? [])
+                    .map((item) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                item['name'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                item['price'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
                 const Divider(height: AppSpacing.lg),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2647,16 +3165,17 @@ class _ReceiptAnalysisCard extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.md),
-          
+
           // Details
-          _buildDetailRow('Date & Time', '${receiptData['date']} • ${receiptData['time']}'),
+          _buildDetailRow(
+              'Date & Time', '${receiptData['date']} • ${receiptData['time']}'),
           _buildDetailRow('Merchant', receiptData['merchant'] ?? ''),
           _buildDetailRow('Category', receiptData['merchantType'] ?? ''),
-          
+
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Action buttons or status
           if (action == null) ...[
             Row(
@@ -2666,13 +3185,18 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                     onPressed: () => onAction('ignore'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
-                      side: BorderSide(color: AppColors.textSecondary.withOpacity(0.3)),
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      side: BorderSide(
+                          color: AppColors.textSecondary.withOpacity(0.3)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
                       ),
                     ),
-                    child: const Text('Ignore', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    child: const Text('Ignore',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -2682,9 +3206,11 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.accent,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
                       ),
                     ),
                     child: const Row(
@@ -2692,7 +3218,9 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                       children: [
                         Icon(Icons.bookmark, size: 18),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Save in Bill', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        Text('Save in Bill',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -2703,7 +3231,7 @@ class _ReceiptAnalysisCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
-                color: action == 'ignore' 
+                color: action == 'ignore'
                     ? AppColors.textSecondary.withOpacity(0.1)
                     : AppColors.positive.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -2713,7 +3241,9 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                 children: [
                   Icon(
                     action == 'ignore' ? Icons.block : Icons.bookmark,
-                    color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                    color: action == 'ignore'
+                        ? AppColors.textSecondary
+                        : AppColors.positive,
                     size: 20,
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -2722,7 +3252,9 @@ class _ReceiptAnalysisCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                      color: action == 'ignore'
+                          ? AppColors.textSecondary
+                          : AppColors.positive,
                     ),
                   ),
                 ],
@@ -2818,6 +3350,8 @@ class _MessageBubble extends StatelessWidget {
     required this.alignment,
     required this.bubbleColor,
     required this.textColor,
+    this.useMarkdown = true,
+    this.chartImages,
   });
 
   final String speaker;
@@ -2825,9 +3359,14 @@ class _MessageBubble extends StatelessWidget {
   final Alignment alignment;
   final Color bubbleColor;
   final Color textColor;
+  final bool useMarkdown;
+  final List<String>? chartImages;
 
   @override
   Widget build(BuildContext context) {
+    // Determine if message is from Agent (left aligned) for markdown rendering
+    final isAgentMessage = alignment == Alignment.centerLeft;
+
     return Align(
       alignment: alignment,
       child: ConstrainedBox(
@@ -2852,20 +3391,197 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: textColor,
-                    height: 1.4,
+                // Use Markdown for agent messages, plain text for user messages
+                if (useMarkdown && isAgentMessage)
+                  MarkdownBody(
+                    data: message,
+                    selectable: true,
+                    shrinkWrap: true,
+                    styleSheet: MarkdownStyleSheet(
+                      p: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        height: 1.4,
+                      ),
+                      strong: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      em: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      code: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.accent,
+                        backgroundColor: AppColors.accent.withOpacity(0.1),
+                        fontFamily: 'monospace',
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      blockquote: TextStyle(
+                        fontSize: 15,
+                        color: textColor.withOpacity(0.8),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      blockquoteDecoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: AppColors.accent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      blockquotePadding: const EdgeInsets.only(left: 12),
+                      listBullet: TextStyle(
+                        fontSize: 15,
+                        color: textColor,
+                      ),
+                      h1: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      h2: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      h3: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      tableHead: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                      tableBody: TextStyle(
+                        fontSize: 14,
+                        color: textColor,
+                      ),
+                      tableBorder: TableBorder.all(
+                        color: textColor.withOpacity(0.3),
+                        width: 1,
+                      ),
+                      tableCellsPadding: const EdgeInsets.all(8),
+                      horizontalRuleDecoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: textColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: textColor,
+                      height: 1.4,
+                    ),
                   ),
-                ),
+                // Display chart images if present
+                if (chartImages != null && chartImages!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  ...chartImages!.map((base64Image) => _ChartImageWidget(
+                        base64Image: base64Image,
+                      )),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Widget to display a base64 encoded chart image
+class _ChartImageWidget extends StatelessWidget {
+  const _ChartImageWidget({
+    required this.base64Image,
+  });
+
+  final String base64Image;
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      // Import dart:convert for base64 decoding
+      final imageBytes = base64Decode(base64Image);
+
+      return Container(
+        margin: const EdgeInsets.only(top: AppSpacing.sm),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          border: Border.all(
+            color: AppColors.accent.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          child: Image.memory(
+            imageBytes,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.broken_image,
+                      color: AppColors.textSecondary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Failed to load chart',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: AppColors.negative,
+              size: 24,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Error decoding chart image',
+                style: TextStyle(
+                  color: AppColors.negative,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 
@@ -3011,6 +3727,9 @@ class _Composer extends StatefulWidget {
     required this.showAttachmentMenu,
     required this.onToggleAttachment,
     required this.onReceiptUpload,
+    this.voiceChatMode = false,
+    this.isSpeaking = false,
+    this.onStopSpeaking,
   });
 
   final void Function(String) onSend;
@@ -3022,6 +3741,9 @@ class _Composer extends StatefulWidget {
   final bool showAttachmentMenu;
   final VoidCallback onToggleAttachment;
   final void Function(String) onReceiptUpload;
+  final bool voiceChatMode;
+  final bool isSpeaking;
+  final VoidCallback? onStopSpeaking;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -3054,7 +3776,7 @@ class _ComposerState extends State<_Composer> {
 
   void _handleSend() {
     if (_controller.text.trim().isEmpty) return;
-    
+
     widget.onSend(_controller.text.trim());
     _controller.clear();
   }
@@ -3099,7 +3821,7 @@ class _ComposerState extends State<_Composer> {
             ),
           ),
         ],
-        
+
         // Main composer
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
@@ -3107,7 +3829,7 @@ class _ComposerState extends State<_Composer> {
             color: Colors.white.withOpacity(0.9),
             borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
             border: Border.all(
-              color: widget.isListening 
+              color: widget.isListening
                   ? AppColors.accent.withOpacity(0.6)
                   : Colors.white.withOpacity(0.4),
               width: widget.isListening ? 2 : 1,
@@ -3136,7 +3858,9 @@ class _ComposerState extends State<_Composer> {
                       ),
                       child: Icon(
                         widget.showAttachmentMenu ? Icons.close : Icons.add,
-                        color: widget.showAttachmentMenu ? AppColors.accent : AppColors.textSecondary,
+                        color: widget.showAttachmentMenu
+                            ? AppColors.accent
+                            : AppColors.textSecondary,
                         size: 24,
                       ),
                     ),
@@ -3166,12 +3890,12 @@ class _ComposerState extends State<_Composer> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: widget.isListening 
+                        color: widget.isListening
                             ? AppColors.accent.withOpacity(0.15)
                             : Colors.grey.withOpacity(0.1),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: widget.isListening 
+                          color: widget.isListening
                               ? AppColors.accent
                               : AppColors.textSecondary.withOpacity(0.3),
                           width: 2,
@@ -3179,7 +3903,9 @@ class _ComposerState extends State<_Composer> {
                       ),
                       child: Icon(
                         widget.isListening ? Icons.mic : Icons.mic_none,
-                        color: widget.isListening ? AppColors.accent : AppColors.textSecondary,
+                        color: widget.isListening
+                            ? AppColors.accent
+                            : AppColors.textSecondary,
                         size: 24,
                       ),
                     ),
@@ -3189,12 +3915,12 @@ class _ComposerState extends State<_Composer> {
                     child: TextField(
                       controller: _controller,
                       decoration: InputDecoration(
-                        hintText: widget.isListening 
-                            ? 'Listening...' 
+                        hintText: widget.isListening
+                            ? 'Listening...'
                             : 'Ask the agent or hold mic to speak…',
                         hintStyle: TextStyle(
-                          color: widget.isListening 
-                              ? AppColors.accent 
+                          color: widget.isListening
+                              ? AppColors.accent
                               : AppColors.textSecondary,
                           fontSize: 14,
                         ),
@@ -3218,7 +3944,8 @@ class _ComposerState extends State<_Composer> {
                               : AppColors.textSecondary.withOpacity(0.3),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.arrow_upward, color: Colors.white),
+                        child:
+                            const Icon(Icons.arrow_upward, color: Colors.white),
                       ),
                     ),
                   ),
@@ -3302,10 +4029,11 @@ class _VoiceWaveAnimation extends StatelessWidget {
         children: List.generate(5, (index) {
           final baseHeight = 8.0;
           final maxHeight = 32.0;
-          final animatedHeight = baseHeight + (maxHeight - baseHeight) * soundLevel;
+          final animatedHeight =
+              baseHeight + (maxHeight - baseHeight) * soundLevel;
           final delay = index * 0.1;
           final heightMultiplier = (1 + soundLevel) * (0.5 + (index % 3) * 0.3);
-          
+
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: AnimatedContainer(
@@ -3337,7 +4065,7 @@ class _WithdrawalBankGrid extends StatefulWidget {
 class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  
+
   // Complete list of banks in Malaysia
   static const List<Map<String, String>> _allBanks = [
     // Local Commercial Banks
@@ -3345,70 +4073,224 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
     {'name': 'CIMB Bank', 'fullName': 'CIMB Bank Berhad', 'type': 'local'},
     {'name': 'Public Bank', 'fullName': 'Public Bank Berhad', 'type': 'local'},
     {'name': 'RHB Bank', 'fullName': 'RHB Bank Berhad', 'type': 'local'},
-    {'name': 'Hong Leong Bank', 'fullName': 'Hong Leong Bank Berhad', 'type': 'local'},
+    {
+      'name': 'Hong Leong Bank',
+      'fullName': 'Hong Leong Bank Berhad',
+      'type': 'local'
+    },
     {'name': 'AmBank', 'fullName': 'AmBank (M) Berhad', 'type': 'local'},
-    {'name': 'Bank Islam', 'fullName': 'Bank Islam Malaysia Berhad', 'type': 'islamic'},
-    {'name': 'Bank Muamalat', 'fullName': 'Bank Muamalat Malaysia Berhad', 'type': 'islamic'},
-    {'name': 'Bank Rakyat', 'fullName': 'Bank Kerjasama Rakyat Malaysia Berhad', 'type': 'local'},
+    {
+      'name': 'Bank Islam',
+      'fullName': 'Bank Islam Malaysia Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Bank Muamalat',
+      'fullName': 'Bank Muamalat Malaysia Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Bank Rakyat',
+      'fullName': 'Bank Kerjasama Rakyat Malaysia Berhad',
+      'type': 'local'
+    },
     {'name': 'BSN', 'fullName': 'Bank Simpanan Nasional', 'type': 'local'},
     {'name': 'Affin Bank', 'fullName': 'Affin Bank Berhad', 'type': 'local'},
-    {'name': 'Alliance Bank', 'fullName': 'Alliance Bank Malaysia Berhad', 'type': 'local'},
-    {'name': 'MBSB Bank', 'fullName': 'Malaysia Building Society Berhad', 'type': 'islamic'},
-    {'name': 'Agrobank', 'fullName': 'Agrobank (Bank Pertanian Malaysia)', 'type': 'local'},
-    {'name': 'Bank Pertanian', 'fullName': 'Bank Pertanian Malaysia Berhad', 'type': 'local'},
-    
+    {
+      'name': 'Alliance Bank',
+      'fullName': 'Alliance Bank Malaysia Berhad',
+      'type': 'local'
+    },
+    {
+      'name': 'MBSB Bank',
+      'fullName': 'Malaysia Building Society Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Agrobank',
+      'fullName': 'Agrobank (Bank Pertanian Malaysia)',
+      'type': 'local'
+    },
+    {
+      'name': 'Bank Pertanian',
+      'fullName': 'Bank Pertanian Malaysia Berhad',
+      'type': 'local'
+    },
+
     // Foreign Banks
-    {'name': 'HSBC', 'fullName': 'HSBC Bank Malaysia Berhad', 'type': 'foreign'},
-    {'name': 'Standard Chartered', 'fullName': 'Standard Chartered Bank Malaysia', 'type': 'foreign'},
-    {'name': 'OCBC Bank', 'fullName': 'OCBC Bank (Malaysia) Berhad', 'type': 'foreign'},
-    {'name': 'UOB', 'fullName': 'United Overseas Bank (Malaysia)', 'type': 'foreign'},
+    {
+      'name': 'HSBC',
+      'fullName': 'HSBC Bank Malaysia Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Standard Chartered',
+      'fullName': 'Standard Chartered Bank Malaysia',
+      'type': 'foreign'
+    },
+    {
+      'name': 'OCBC Bank',
+      'fullName': 'OCBC Bank (Malaysia) Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'UOB',
+      'fullName': 'United Overseas Bank (Malaysia)',
+      'type': 'foreign'
+    },
     {'name': 'Citibank', 'fullName': 'Citibank Berhad', 'type': 'foreign'},
-    {'name': 'Deutsche Bank', 'fullName': 'Deutsche Bank (Malaysia) Berhad', 'type': 'foreign'},
-    {'name': 'Bank of China', 'fullName': 'Bank of China (Malaysia) Berhad', 'type': 'foreign'},
-    {'name': 'ICBC', 'fullName': 'Industrial and Commercial Bank of China', 'type': 'foreign'},
-    {'name': 'Bank of America', 'fullName': 'Bank of America Malaysia Berhad', 'type': 'foreign'},
-    {'name': 'JP Morgan', 'fullName': 'J.P. Morgan Chase Bank Berhad', 'type': 'foreign'},
-    {'name': 'BNP Paribas', 'fullName': 'BNP Paribas Malaysia Berhad', 'type': 'foreign'},
-    {'name': 'Mizuho Bank', 'fullName': 'Mizuho Bank (Malaysia) Berhad', 'type': 'foreign'},
-    {'name': 'Sumitomo Mitsui', 'fullName': 'Sumitomo Mitsui Banking Corporation', 'type': 'foreign'},
-    {'name': 'India International Bank', 'fullName': 'India International Bank (Malaysia)', 'type': 'foreign'},
-    {'name': 'Bangkok Bank', 'fullName': 'Bangkok Bank Berhad', 'type': 'foreign'},
-    
+    {
+      'name': 'Deutsche Bank',
+      'fullName': 'Deutsche Bank (Malaysia) Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Bank of China',
+      'fullName': 'Bank of China (Malaysia) Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'ICBC',
+      'fullName': 'Industrial and Commercial Bank of China',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Bank of America',
+      'fullName': 'Bank of America Malaysia Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'JP Morgan',
+      'fullName': 'J.P. Morgan Chase Bank Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'BNP Paribas',
+      'fullName': 'BNP Paribas Malaysia Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Mizuho Bank',
+      'fullName': 'Mizuho Bank (Malaysia) Berhad',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Sumitomo Mitsui',
+      'fullName': 'Sumitomo Mitsui Banking Corporation',
+      'type': 'foreign'
+    },
+    {
+      'name': 'India International Bank',
+      'fullName': 'India International Bank (Malaysia)',
+      'type': 'foreign'
+    },
+    {
+      'name': 'Bangkok Bank',
+      'fullName': 'Bangkok Bank Berhad',
+      'type': 'foreign'
+    },
+
     // Islamic Banks
-    {'name': 'Maybank Islamic', 'fullName': 'Maybank Islamic Berhad', 'type': 'islamic'},
-    {'name': 'CIMB Islamic', 'fullName': 'CIMB Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'Public Islamic Bank', 'fullName': 'Public Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'RHB Islamic', 'fullName': 'RHB Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'Hong Leong Islamic', 'fullName': 'Hong Leong Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'AmBank Islamic', 'fullName': 'AmBank Islamic Berhad', 'type': 'islamic'},
-    {'name': 'Affin Islamic', 'fullName': 'Affin Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'Alliance Islamic', 'fullName': 'Alliance Islamic Bank Berhad', 'type': 'islamic'},
-    {'name': 'HSBC Amanah', 'fullName': 'HSBC Amanah Malaysia Berhad', 'type': 'islamic'},
-    {'name': 'OCBC Al-Amin', 'fullName': 'OCBC Al-Amin Bank Berhad', 'type': 'islamic'},
-    {'name': 'Standard Chartered Saadiq', 'fullName': 'Standard Chartered Saadiq Berhad', 'type': 'islamic'},
-    {'name': 'Kuwait Finance House', 'fullName': 'Kuwait Finance House (Malaysia)', 'type': 'islamic'},
-    {'name': 'Al Rajhi Bank', 'fullName': 'Al Rajhi Banking & Investment Corporation', 'type': 'islamic'},
-    
+    {
+      'name': 'Maybank Islamic',
+      'fullName': 'Maybank Islamic Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'CIMB Islamic',
+      'fullName': 'CIMB Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Public Islamic Bank',
+      'fullName': 'Public Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'RHB Islamic',
+      'fullName': 'RHB Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Hong Leong Islamic',
+      'fullName': 'Hong Leong Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'AmBank Islamic',
+      'fullName': 'AmBank Islamic Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Affin Islamic',
+      'fullName': 'Affin Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Alliance Islamic',
+      'fullName': 'Alliance Islamic Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'HSBC Amanah',
+      'fullName': 'HSBC Amanah Malaysia Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'OCBC Al-Amin',
+      'fullName': 'OCBC Al-Amin Bank Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Standard Chartered Saadiq',
+      'fullName': 'Standard Chartered Saadiq Berhad',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Kuwait Finance House',
+      'fullName': 'Kuwait Finance House (Malaysia)',
+      'type': 'islamic'
+    },
+    {
+      'name': 'Al Rajhi Bank',
+      'fullName': 'Al Rajhi Banking & Investment Corporation',
+      'type': 'islamic'
+    },
+
     // Digital Banks
     {'name': 'GXBank', 'fullName': 'GX Bank Berhad', 'type': 'digital'},
     {'name': 'Boost Bank', 'fullName': 'Boost Bank Berhad', 'type': 'digital'},
-    {'name': 'AEON Bank', 'fullName': 'AEON Bank (M) Berhad', 'type': 'digital'},
+    {
+      'name': 'AEON Bank',
+      'fullName': 'AEON Bank (M) Berhad',
+      'type': 'digital'
+    },
     {'name': 'GoBank', 'fullName': 'GoBank Berhad', 'type': 'digital'},
-    {'name': 'KAF Digital Bank', 'fullName': 'KAF Digital Bank Berhad', 'type': 'digital'},
+    {
+      'name': 'KAF Digital Bank',
+      'fullName': 'KAF Digital Bank Berhad',
+      'type': 'digital'
+    },
   ];
-  
+
   // Popular banks to show at top
   static const List<String> _popularBanks = [
-    'Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'Hong Leong Bank', 'AmBank'
+    'Maybank',
+    'CIMB Bank',
+    'Public Bank',
+    'RHB Bank',
+    'Hong Leong Bank',
+    'AmBank'
   ];
 
   List<Map<String, String>> get _filteredBanks {
     if (_searchQuery.isEmpty) return _allBanks;
     final query = _searchQuery.toLowerCase();
-    return _allBanks.where((bank) =>
-        bank['name']!.toLowerCase().contains(query) ||
-        bank['fullName']!.toLowerCase().contains(query)
-    ).toList();
+    return _allBanks
+        .where((bank) =>
+            bank['name']!.toLowerCase().contains(query) ||
+            bank['fullName']!.toLowerCase().contains(query))
+        .toList();
   }
 
   @override
@@ -3435,7 +4317,8 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
             onChanged: (value) => setState(() => _searchQuery = value),
             decoration: InputDecoration(
               hintText: 'Search bank name...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              prefixIcon:
+                  const Icon(Icons.search, color: AppColors.textSecondary),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear, size: 20),
@@ -3460,7 +4343,7 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Popular banks (only show when not searching)
           if (_searchQuery.isEmpty) ...[
             const Text(
@@ -3475,9 +4358,9 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
             Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
-              children: _popularBanks.map((bankName) => 
-                _buildQuickBankChip(bankName)
-              ).toList(),
+              children: _popularBanks
+                  .map((bankName) => _buildQuickBankChip(bankName))
+                  .toList(),
             ),
             const SizedBox(height: AppSpacing.md),
             const Divider(),
@@ -3492,7 +4375,7 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          
+
           // Bank list
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 300),
@@ -3519,12 +4402,13 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
       ),
     );
   }
-  
+
   Widget _buildQuickBankChip(String bankName) {
     return GestureDetector(
       onTap: () => widget.onBankSelected(bankName),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -3547,7 +4431,8 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
                 color: AppColors.accent.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.account_balance, size: 14, color: AppColors.accent),
+              child: const Icon(Icons.account_balance,
+                  size: 14, color: AppColors.accent),
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(
@@ -3567,7 +4452,7 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
   Widget _buildBankListItem(Map<String, String> bank) {
     IconData typeIcon;
     Color typeColor;
-    
+
     switch (bank['type']) {
       case 'islamic':
         typeIcon = Icons.mosque;
@@ -3585,7 +4470,7 @@ class _WithdrawalBankGridState extends State<_WithdrawalBankGrid> {
         typeIcon = Icons.account_balance;
         typeColor = AppColors.textSecondary;
     }
-    
+
     return InkWell(
       onTap: () => widget.onBankSelected(bank['name']!),
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -3679,10 +4564,12 @@ class _WithdrawalAccountGrid extends StatelessWidget {
         border: Border.all(color: Colors.white.withOpacity(0.3)),
       ),
       child: Column(
-        children: _accounts.map((account) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: _buildAccountCard(account),
-        )).toList(),
+        children: _accounts
+            .map((account) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _buildAccountCard(account),
+                ))
+            .toList(),
       ),
     );
   }
@@ -3791,14 +4678,21 @@ class _WithdrawalAmountSelector extends StatefulWidget {
   final Function(String) onAmountSelected;
 
   @override
-  State<_WithdrawalAmountSelector> createState() => _WithdrawalAmountSelectorState();
+  State<_WithdrawalAmountSelector> createState() =>
+      _WithdrawalAmountSelectorState();
 }
 
 class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
   final _customAmountController = TextEditingController();
   String? _selectedPreset;
 
-  static const List<String> _presetAmounts = ['50', '100', '200', '500', '1000'];
+  static const List<String> _presetAmounts = [
+    '50',
+    '100',
+    '200',
+    '500',
+    '1000'
+  ];
 
   @override
   void dispose() {
@@ -3839,7 +4733,8 @@ class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.account_balance_wallet, color: AppColors.accent, size: 20),
+                const Icon(Icons.account_balance_wallet,
+                    color: AppColors.accent, size: 20),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -3855,7 +4750,7 @@ class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Quick amounts
           const Text(
             'Quick Amount',
@@ -3869,44 +4764,47 @@ class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
-            children: _presetAmounts.map((amount) => GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedPreset = amount;
-                  _customAmountController.clear();
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
-                ),
-                decoration: BoxDecoration(
-                  color: _selectedPreset == amount 
-                      ? AppColors.accent 
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                  border: Border.all(
-                    color: _selectedPreset == amount 
-                        ? AppColors.accent 
-                        : Colors.grey.shade300,
-                  ),
-                ),
-                child: Text(
-                  'RM $amount',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _selectedPreset == amount 
-                        ? Colors.white 
-                        : AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            )).toList(),
+            children: _presetAmounts
+                .map((amount) => GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedPreset = amount;
+                          _customAmountController.clear();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.md,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedPreset == amount
+                              ? AppColors.accent
+                              : Colors.white,
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusMd),
+                          border: Border.all(
+                            color: _selectedPreset == amount
+                                ? AppColors.accent
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Text(
+                          'RM $amount',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedPreset == amount
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Custom amount
           const Text(
             'Or enter custom amount',
@@ -3945,7 +4843,7 @@ class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Continue button
           SizedBox(
             width: double.infinity,
@@ -3959,7 +4857,8 @@ class _WithdrawalAmountSelectorState extends State<_WithdrawalAmountSelector> {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ),
-              child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Continue',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -4050,10 +4949,17 @@ class _BranchSelectorState extends State<_BranchSelector> {
 
   List<Map<String, dynamic>> get _filteredBranches {
     if (_searchQuery.isEmpty) return _branches;
-    return _branches.where((b) =>
-        b['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-        b['address'].toString().toLowerCase().contains(_searchQuery.toLowerCase())
-    ).toList();
+    return _branches
+        .where((b) =>
+            b['name']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
+            b['address']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()))
+        .toList();
   }
 
   @override
@@ -4133,7 +5039,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.my_location, color: AppColors.positive, size: 18),
+                  const Icon(Icons.my_location,
+                      color: AppColors.positive, size: 18),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -4149,14 +5056,15 @@ class _BranchSelectorState extends State<_BranchSelector> {
               ),
             ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Search field
           TextField(
             controller: _searchController,
             onChanged: (value) => setState(() => _searchQuery = value),
             decoration: InputDecoration(
               hintText: 'Search branch or location...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              prefixIcon:
+                  const Icon(Icons.search, color: AppColors.textSecondary),
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -4170,13 +5078,13 @@ class _BranchSelectorState extends State<_BranchSelector> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Branch list
           ..._filteredBranches.map((branch) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _buildBranchCard(branch),
-          )),
-          
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _buildBranchCard(branch),
+              )),
+
           if (_filteredBranches.isEmpty)
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -4187,16 +5095,17 @@ class _BranchSelectorState extends State<_BranchSelector> {
                 ),
               ),
             ),
-          
+
           const SizedBox(height: AppSpacing.sm),
-          
+
           // Confirm button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _selectedBranch != null 
+              onPressed: _selectedBranch != null
                   ? () {
-                      final selected = _branches.firstWhere((b) => b['name'] == _selectedBranch);
+                      final selected = _branches
+                          .firstWhere((b) => b['name'] == _selectedBranch);
                       widget.onBranchSelected(selected);
                     }
                   : null,
@@ -4209,7 +5118,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ),
-              child: const Text('Confirm Branch', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Confirm Branch',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -4220,7 +5130,7 @@ class _BranchSelectorState extends State<_BranchSelector> {
   Widget _buildBranchCard(Map<String, dynamic> branch) {
     final isSelected = _selectedBranch == branch['name'];
     final isNearest = branch['name'] == _branches[_autoSelectedIndex]['name'];
-    
+
     return GestureDetector(
       onTap: () => setState(() => _selectedBranch = branch['name']),
       child: Container(
@@ -4242,14 +5152,15 @@ class _BranchSelectorState extends State<_BranchSelector> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: isSelected 
-                        ? AppColors.accent.withOpacity(0.2) 
+                    color: isSelected
+                        ? AppColors.accent.withOpacity(0.2)
                         : AppColors.textSecondary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                   ),
                   child: Icon(
                     Icons.location_on,
-                    color: isSelected ? AppColors.accent : AppColors.textSecondary,
+                    color:
+                        isSelected ? AppColors.accent : AppColors.textSecondary,
                     size: 22,
                   ),
                 ),
@@ -4266,14 +5177,17 @@ class _BranchSelectorState extends State<_BranchSelector> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                                color: isSelected
+                                    ? AppColors.accent
+                                    : AppColors.textPrimary,
                               ),
                             ),
                           ),
                           if (isNearest) ...[
                             const SizedBox(width: AppSpacing.xs),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.positive,
                                 borderRadius: BorderRadius.circular(8),
@@ -4305,7 +5219,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.positive.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
@@ -4331,7 +5246,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
                 ),
                 if (isSelected) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  const Icon(Icons.check_circle, color: AppColors.accent, size: 22),
+                  const Icon(Icons.check_circle,
+                      color: AppColors.accent, size: 22),
                 ],
               ],
             ),
@@ -4343,7 +5259,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
                   // Open Google Maps - in real app would use url_launcher
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
                   decoration: BoxDecoration(
                     color: AppColors.accentBlue.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -4362,7 +5279,8 @@ class _BranchSelectorState extends State<_BranchSelector> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.open_in_new, size: 12, color: AppColors.accentBlue),
+                      Icon(Icons.open_in_new,
+                          size: 12, color: AppColors.accentBlue),
                     ],
                   ),
                 ),
@@ -4420,11 +5338,13 @@ class _WithdrawalAmountInputState extends State<_WithdrawalAmountInput> {
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -4449,7 +5369,8 @@ class _WithdrawalAmountInputState extends State<_WithdrawalAmountInput> {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ),
-              child: const Text('Confirm Withdrawal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Confirm Withdrawal',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -4495,7 +5416,8 @@ class _WithdrawalQRCard extends StatelessWidget {
                   color: AppColors.accent.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.qr_code_2, color: AppColors.accent, size: 28),
+                child: const Icon(Icons.qr_code_2,
+                    color: AppColors.accent, size: 28),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -4523,7 +5445,7 @@ class _WithdrawalQRCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // QR Code Display
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -4556,7 +5478,8 @@ class _WithdrawalQRCard extends StatelessWidget {
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 15,
                           crossAxisSpacing: 1,
                           mainAxisSpacing: 1,
@@ -4569,12 +5492,14 @@ class _WithdrawalQRCard extends StatelessWidget {
                           // Corner patterns
                           final row = index ~/ 15;
                           final col = index % 15;
-                          final isCorner = (row < 3 && col < 3) || 
-                                          (row < 3 && col > 11) ||
-                                          (row > 11 && col < 3);
+                          final isCorner = (row < 3 && col < 3) ||
+                              (row < 3 && col > 11) ||
+                              (row > 11 && col < 3);
                           return Container(
                             decoration: BoxDecoration(
-                              color: isCorner || isBlack ? AppColors.textPrimary : Colors.white,
+                              color: isCorner || isBlack
+                                  ? AppColors.textPrimary
+                                  : Colors.white,
                               borderRadius: BorderRadius.circular(1),
                             ),
                           );
@@ -4588,7 +5513,8 @@ class _WithdrawalQRCard extends StatelessWidget {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.account_balance, color: AppColors.accent, size: 24),
+                        child: const Icon(Icons.account_balance,
+                            color: AppColors.accent, size: 24),
                       ),
                     ],
                   ),
@@ -4596,7 +5522,8 @@ class _WithdrawalQRCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.md),
                 // QR Code value
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -4616,7 +5543,7 @@ class _WithdrawalQRCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Transaction Details
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -4626,7 +5553,9 @@ class _WithdrawalQRCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildDetailRow('Amount', 'RM ${withdrawalData['amount'].toStringAsFixed(2)}', isHighlight: true),
+                _buildDetailRow('Amount',
+                    'RM ${withdrawalData['amount'].toStringAsFixed(2)}',
+                    isHighlight: true),
                 const Divider(height: AppSpacing.md),
                 _buildDetailRow('Account', withdrawalData['account']),
                 _buildDetailRow('Branch', withdrawalData['branch']),
@@ -4636,7 +5565,7 @@ class _WithdrawalQRCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Google Maps Link
           GestureDetector(
             onTap: () {
@@ -4647,7 +5576,8 @@ class _WithdrawalQRCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.accentBlue.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                border: Border.all(color: AppColors.accentBlue.withOpacity(0.3)),
+                border:
+                    Border.all(color: AppColors.accentBlue.withOpacity(0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -4663,19 +5593,21 @@ class _WithdrawalQRCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Icon(Icons.open_in_new, color: AppColors.accentBlue, size: 16),
+                  Icon(Icons.open_in_new,
+                      color: AppColors.accentBlue, size: 16),
                 ],
               ),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          
+
           // Location info
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.location_on, color: AppColors.textSecondary, size: 16),
+                Icon(Icons.location_on,
+                    color: AppColors.textSecondary, size: 16),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: Text(
@@ -4690,14 +5622,15 @@ class _WithdrawalQRCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Simulate collection button (for demo)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: onCollected,
               icon: const Icon(Icons.check_circle, size: 20),
-              label: const Text('Simulate: Cash Collected', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              label: const Text('Simulate: Cash Collected',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.positive,
                 foregroundColor: Colors.white,
@@ -4713,7 +5646,8 @@ class _WithdrawalQRCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isHighlight = false}) {
+  Widget _buildDetailRow(String label, String value,
+      {bool isHighlight = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: Row(
@@ -4755,7 +5689,7 @@ class _WithdrawalReceipt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCollected = withdrawalData['status'] == 'collected';
-    
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -4782,7 +5716,8 @@ class _WithdrawalReceipt extends StatelessWidget {
                   color: AppColors.positive.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle, color: AppColors.positive, size: 32),
+                child: const Icon(Icons.check_circle,
+                    color: AppColors.positive, size: 32),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -4798,7 +5733,9 @@ class _WithdrawalReceipt extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      isCollected ? 'Money collected successfully' : 'Transaction successful',
+                      isCollected
+                          ? 'Money collected successfully'
+                          : 'Transaction successful',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
@@ -4809,7 +5746,7 @@ class _WithdrawalReceipt extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Collection Status Banner (if collected)
           if (isCollected) ...[
             const SizedBox(height: AppSpacing.md),
@@ -4822,7 +5759,8 @@ class _WithdrawalReceipt extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified, color: AppColors.positive, size: 20),
+                  const Icon(Icons.verified,
+                      color: AppColors.positive, size: 20),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
@@ -4852,7 +5790,7 @@ class _WithdrawalReceipt extends StatelessWidget {
               ),
             ),
           ],
-          
+
           const SizedBox(height: AppSpacing.lg),
           // Transaction details
           Container(
@@ -4871,7 +5809,11 @@ class _WithdrawalReceipt extends StatelessWidget {
                 const Divider(height: AppSpacing.lg),
                 _buildDetailRow('Time', withdrawalData['time']),
                 const Divider(height: AppSpacing.lg),
-                _buildDetailRow('Account', withdrawalData['account'] ?? withdrawalData['bank'] ?? 'N/A'),
+                _buildDetailRow(
+                    'Account',
+                    withdrawalData['account'] ??
+                        withdrawalData['bank'] ??
+                        'N/A'),
                 const Divider(height: AppSpacing.lg),
                 if (withdrawalData['branch'] != null) ...[
                   _buildDetailRow('Location', withdrawalData['branch']),
@@ -4881,17 +5823,23 @@ class _WithdrawalReceipt extends StatelessWidget {
                   _buildDetailRow('ATM ID', withdrawalData['atmId']),
                   const Divider(height: AppSpacing.lg),
                 ],
-                _buildDetailRow('Original Balance', 'RM ${withdrawalData['originalBalance'].toStringAsFixed(2)}'),
+                _buildDetailRow('Original Balance',
+                    'RM ${withdrawalData['originalBalance'].toStringAsFixed(2)}'),
                 const Divider(height: AppSpacing.lg),
-                _buildDetailRow('Withdrawal Amount', '- RM ${withdrawalData['amount'].toStringAsFixed(2)}', isNegative: true),
+                _buildDetailRow('Withdrawal Amount',
+                    '- RM ${withdrawalData['amount'].toStringAsFixed(2)}',
+                    isNegative: true),
                 const Divider(height: AppSpacing.lg),
-                _buildDetailRow('New Balance', 'RM ${withdrawalData['newBalance'].toStringAsFixed(2)}', isBold: true),
+                _buildDetailRow('New Balance',
+                    'RM ${withdrawalData['newBalance'].toStringAsFixed(2)}',
+                    isBold: true),
                 const Divider(height: AppSpacing.lg),
-                _buildDetailRow('Transaction ID', withdrawalData['transactionId']),
+                _buildDetailRow(
+                    'Transaction ID', withdrawalData['transactionId']),
               ],
             ),
           ),
-          
+
           // Google Maps Link (if location available)
           if (withdrawalData['googleMapsUrl'] != null) ...[
             const SizedBox(height: AppSpacing.md),
@@ -4919,13 +5867,14 @@ class _WithdrawalReceipt extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    Icon(Icons.open_in_new, color: AppColors.accentBlue, size: 14),
+                    Icon(Icons.open_in_new,
+                        color: AppColors.accentBlue, size: 14),
                   ],
                 ),
               ),
             ),
           ],
-          
+
           const SizedBox(height: AppSpacing.lg),
           // Action buttons
           if (action == null) ...[
@@ -4936,10 +5885,13 @@ class _WithdrawalReceipt extends StatelessWidget {
                     onPressed: () => onAction('ignore'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
-                      side: BorderSide(color: AppColors.textSecondary.withOpacity(0.3)),
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      side: BorderSide(
+                          color: AppColors.textSecondary.withOpacity(0.3)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
                       ),
                     ),
                     child: const Row(
@@ -4947,7 +5899,9 @@ class _WithdrawalReceipt extends StatelessWidget {
                       children: [
                         Icon(Icons.close, size: 18),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Ignore', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        Text('Ignore',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -4959,9 +5913,11 @@ class _WithdrawalReceipt extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.accent,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusMd),
                       ),
                     ),
                     child: const Row(
@@ -4969,7 +5925,9 @@ class _WithdrawalReceipt extends StatelessWidget {
                       children: [
                         Icon(Icons.picture_as_pdf, size: 18),
                         SizedBox(width: AppSpacing.xs),
-                        Text('Print in PDF', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        Text('Print in PDF',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -4980,7 +5938,7 @@ class _WithdrawalReceipt extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               decoration: BoxDecoration(
-                color: action == 'ignore' 
+                color: action == 'ignore'
                     ? AppColors.textSecondary.withOpacity(0.1)
                     : AppColors.positive.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -4990,7 +5948,9 @@ class _WithdrawalReceipt extends StatelessWidget {
                 children: [
                   Icon(
                     action == 'ignore' ? Icons.block : Icons.check_circle,
-                    color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                    color: action == 'ignore'
+                        ? AppColors.textSecondary
+                        : AppColors.positive,
                     size: 20,
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -4999,7 +5959,9 @@ class _WithdrawalReceipt extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: action == 'ignore' ? AppColors.textSecondary : AppColors.positive,
+                      color: action == 'ignore'
+                          ? AppColors.textSecondary
+                          : AppColors.positive,
                     ),
                   ),
                 ],
@@ -5011,7 +5973,8 @@ class _WithdrawalReceipt extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isNegative = false, bool isBold = false, bool isPositive = false}) {
+  Widget _buildDetailRow(String label, String value,
+      {bool isNegative = false, bool isBold = false, bool isPositive = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -5027,8 +5990,13 @@ class _WithdrawalReceipt extends StatelessWidget {
           value,
           style: TextStyle(
             fontSize: 14,
-            color: isPositive ? AppColors.positive : (isNegative ? AppColors.negative : (isBold ? AppColors.textPrimary : AppColors.textPrimary)),
-            fontWeight: isBold || isPositive ? FontWeight.bold : FontWeight.w600,
+            color: isPositive
+                ? AppColors.positive
+                : (isNegative
+                    ? AppColors.negative
+                    : (isBold ? AppColors.textPrimary : AppColors.textPrimary)),
+            fontWeight:
+                isBold || isPositive ? FontWeight.bold : FontWeight.w600,
           ),
         ),
       ],
@@ -5116,7 +6084,10 @@ class _CustomBankFormState extends State<_CustomBankForm> {
                       children: [
                         Icon(Icons.credit_card, size: 48, color: Colors.white),
                         SizedBox(height: 8),
-                        Text('Bank Card', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                        Text('Bank Card',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   );
@@ -5125,7 +6096,7 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Card Number
           TextField(
             controller: _cardNumberController,
@@ -5137,11 +6108,13 @@ class _CustomBankFormState extends State<_CustomBankForm> {
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -5150,7 +6123,7 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Expiry Date
           TextField(
             controller: _expiryDateController,
@@ -5162,11 +6135,13 @@ class _CustomBankFormState extends State<_CustomBankForm> {
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -5175,7 +6150,7 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Bank Name
           TextField(
             controller: _bankNameController,
@@ -5186,11 +6161,13 @@ class _CustomBankFormState extends State<_CustomBankForm> {
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+                borderSide:
+                    BorderSide(color: AppColors.accent.withOpacity(0.3)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -5199,7 +6176,7 @@ class _CustomBankFormState extends State<_CustomBankForm> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Submit button
           SizedBox(
             width: double.infinity,
@@ -5213,7 +6190,8 @@ class _CustomBankFormState extends State<_CustomBankForm> {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 ),
               ),
-              child: const Text('Complete', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Complete',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -5260,16 +6238,16 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
 
   void _startVerification() async {
     setState(() => _isVerifying = true);
-    
+
     // Step 1: Fingerprint
     _animationController.repeat();
     await Future.delayed(const Duration(milliseconds: 1800));
     setState(() => _currentStep = 1);
-    
+
     // Step 2: Face
     await Future.delayed(const Duration(milliseconds: 1800));
     setState(() => _currentStep = 2);
-    
+
     // Success
     _animationController.stop();
     await Future.delayed(const Duration(milliseconds: 500));
@@ -5296,7 +6274,7 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          
+
           // Animated icon
           AnimatedBuilder(
             animation: _animationController,
@@ -5308,7 +6286,8 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      AppColors.accent.withOpacity(0.3 + (_animationController.value * 0.2)),
+                      AppColors.accent.withOpacity(
+                          0.3 + (_animationController.value * 0.2)),
                       AppColors.accent.withOpacity(0.1),
                     ],
                   ),
@@ -5320,14 +6299,15 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
                           ? Icons.face
                           : Icons.check_circle,
                   size: 60,
-                  color: _currentStep == 2 ? AppColors.positive : AppColors.accent,
+                  color:
+                      _currentStep == 2 ? AppColors.positive : AppColors.accent,
                 ),
               );
             },
           ),
-          
+
           const SizedBox(height: AppSpacing.lg),
-          
+
           Text(
             _currentStep == 0
                 ? 'Verifying Fingerprint...'
@@ -5340,9 +6320,9 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
               color: AppColors.textPrimary,
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.sm),
-          
+
           Text(
             _currentStep == 0
                 ? 'Please place your finger on the sensor'
@@ -5355,16 +6335,16 @@ class _AiBiometricSheetState extends State<_AiBiometricSheet>
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: AppSpacing.xl),
-          
+
           // Cancel button (only show during verification)
           if (_isVerifying && _currentStep < 2)
             TextButton(
               onPressed: widget.onCancel,
               child: const Text('Cancel'),
             ),
-          
+
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
@@ -5385,7 +6365,11 @@ class _BillCategoryGrid extends StatelessWidget {
       {'name': 'Telecommunications', 'icon': Icons.wifi, 'color': Colors.blue},
       {'name': 'Entertainment', 'icon': Icons.tv, 'color': Colors.purple},
       {'name': 'Insurance', 'icon': Icons.security, 'color': Colors.green},
-      {'name': 'Credit Card', 'icon': Icons.credit_card, 'color': AppColors.accent},
+      {
+        'name': 'Credit Card',
+        'icon': Icons.credit_card,
+        'color': AppColors.accent
+      },
       {'name': 'Others', 'icon': Icons.more_horiz, 'color': Colors.grey},
     ];
 
@@ -5476,7 +6460,11 @@ class _BillProviderGrid extends StatelessWidget {
 
   static const Map<String, List<Map<String, dynamic>>> _providers = {
     'Utilities': [
-      {'name': 'TNB (Tenaga Nasional)', 'icon': Icons.electrical_services, 'color': Colors.orange},
+      {
+        'name': 'TNB (Tenaga Nasional)',
+        'icon': Icons.electrical_services,
+        'color': Colors.orange
+      },
       {'name': 'Air Selangor', 'icon': Icons.water_drop, 'color': Colors.blue},
       {'name': 'SYABAS', 'icon': Icons.water_drop, 'color': Colors.lightBlue},
       {'name': 'SAJ (Johor)', 'icon': Icons.water_drop, 'color': Colors.cyan},
@@ -5495,9 +6483,17 @@ class _BillProviderGrid extends StatelessWidget {
     'Entertainment': [
       {'name': 'Astro', 'icon': Icons.tv, 'color': Colors.red},
       {'name': 'Netflix', 'icon': Icons.play_circle, 'color': Colors.red},
-      {'name': 'Disney+ Hotstar', 'icon': Icons.play_circle, 'color': Colors.blue},
+      {
+        'name': 'Disney+ Hotstar',
+        'icon': Icons.play_circle,
+        'color': Colors.blue
+      },
       {'name': 'Spotify', 'icon': Icons.music_note, 'color': Colors.green},
-      {'name': 'YouTube Premium', 'icon': Icons.play_circle, 'color': Colors.red},
+      {
+        'name': 'YouTube Premium',
+        'icon': Icons.play_circle,
+        'color': Colors.red
+      },
     ],
     'Insurance': [
       {'name': 'Prudential', 'icon': Icons.security, 'color': Colors.red},
@@ -5508,18 +6504,54 @@ class _BillProviderGrid extends StatelessWidget {
       {'name': 'AXA', 'icon': Icons.security, 'color': Colors.blue},
     ],
     'Credit Card': [
-      {'name': 'Maybank Credit Card', 'icon': Icons.credit_card, 'color': Colors.yellow},
-      {'name': 'CIMB Credit Card', 'icon': Icons.credit_card, 'color': Colors.red},
-      {'name': 'Public Bank Credit Card', 'icon': Icons.credit_card, 'color': Colors.pink},
-      {'name': 'RHB Credit Card', 'icon': Icons.credit_card, 'color': Colors.blue},
-      {'name': 'Hong Leong Credit Card', 'icon': Icons.credit_card, 'color': Colors.green},
-      {'name': 'AmBank Credit Card', 'icon': Icons.credit_card, 'color': Colors.orange},
+      {
+        'name': 'Maybank Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.yellow
+      },
+      {
+        'name': 'CIMB Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.red
+      },
+      {
+        'name': 'Public Bank Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.pink
+      },
+      {
+        'name': 'RHB Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.blue
+      },
+      {
+        'name': 'Hong Leong Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.green
+      },
+      {
+        'name': 'AmBank Credit Card',
+        'icon': Icons.credit_card,
+        'color': Colors.orange
+      },
     ],
     'Others': [
       {'name': 'PTPTN', 'icon': Icons.school, 'color': Colors.blue},
-      {'name': 'KWSP (EPF)', 'icon': Icons.account_balance, 'color': Colors.purple},
-      {'name': 'LHDN (Income Tax)', 'icon': Icons.receipt_long, 'color': Colors.green},
-      {'name': 'JPJ (Road Tax)', 'icon': Icons.directions_car, 'color': Colors.orange},
+      {
+        'name': 'KWSP (EPF)',
+        'icon': Icons.account_balance,
+        'color': Colors.purple
+      },
+      {
+        'name': 'LHDN (Income Tax)',
+        'icon': Icons.receipt_long,
+        'color': Colors.green
+      },
+      {
+        'name': 'JPJ (Road Tax)',
+        'icon': Icons.directions_car,
+        'color': Colors.orange
+      },
       {'name': 'Zakat', 'icon': Icons.volunteer_activism, 'color': Colors.teal},
     ],
   };
@@ -5540,7 +6572,8 @@ class _BillProviderGrid extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.arrow_back_ios, size: 16, color: AppColors.textSecondary),
+              const Icon(Icons.arrow_back_ios,
+                  size: 16, color: AppColors.textSecondary),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 category,
@@ -5587,7 +6620,8 @@ class _BillProviderGrid extends StatelessWidget {
                         height: 40,
                         decoration: BoxDecoration(
                           color: (provider['color'] as Color).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusSm),
                         ),
                         child: Icon(
                           provider['icon'] as IconData,
@@ -5685,7 +6719,7 @@ class _BillAmountInputState extends State<_BillAmountInput> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           // Total due with due date
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -5741,9 +6775,9 @@ class _BillAmountInputState extends State<_BillAmountInput> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.md),
-          
+
           // Pay full / Partial
           Row(
             children: [
@@ -5752,11 +6786,13 @@ class _BillAmountInputState extends State<_BillAmountInput> {
                   onTap: () {
                     setState(() {
                       _payFull = true;
-                      _amountController.text = widget.totalAmount.toStringAsFixed(2);
+                      _amountController.text =
+                          widget.totalAmount.toStringAsFixed(2);
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: _payFull ? AppColors.accent : Colors.transparent,
                       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -5783,7 +6819,8 @@ class _BillAmountInputState extends State<_BillAmountInput> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: !_payFull ? AppColors.accent : Colors.transparent,
                       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -5802,9 +6839,9 @@ class _BillAmountInputState extends State<_BillAmountInput> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: AppSpacing.md),
-          
+
           // Amount input
           TextField(
             controller: _amountController,
@@ -5820,9 +6857,9 @@ class _BillAmountInputState extends State<_BillAmountInput> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Pay button
           SizedBox(
             width: double.infinity,
@@ -5857,13 +6894,14 @@ class _BillPaymentReceipt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final billType = billData['billType'] ?? 'Unknown';
-    final paidAmount = (billData['paidAmount'] ?? 0.0) is int 
-        ? (billData['paidAmount'] as int).toDouble() 
+    final paidAmount = (billData['paidAmount'] ?? 0.0) is int
+        ? (billData['paidAmount'] as int).toDouble()
         : (billData['paidAmount'] ?? 0.0) as double;
-    final remaining = (billData['remaining'] ?? 0.0) is int 
-        ? (billData['remaining'] as int).toDouble() 
+    final remaining = (billData['remaining'] ?? 0.0) is int
+        ? (billData['remaining'] as int).toDouble()
         : (billData['remaining'] ?? 0.0) as double;
-    final transactionId = billData['transactionId'] ?? 'TXN${DateTime.now().millisecondsSinceEpoch}';
+    final transactionId = billData['transactionId'] ??
+        'TXN${DateTime.now().millisecondsSinceEpoch}';
     final dueDate = billData['dueDate'] as String?;
     final isPaidInFull = remaining <= 0.01;
 
@@ -5900,9 +6938,9 @@ class _BillPaymentReceipt extends StatelessWidget {
               color: isPaidInFull ? AppColors.positive : Colors.orange,
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.md),
-          
+
           Text(
             isPaidInFull ? 'Payment Successful!' : 'Partial Payment Made',
             style: TextStyle(
@@ -5911,23 +6949,25 @@ class _BillPaymentReceipt extends StatelessWidget {
               color: isPaidInFull ? AppColors.positive : Colors.orange,
             ),
           ),
-          
+
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Receipt details
           _buildReceiptRow('Bill Type', billType),
-          _buildReceiptRow('Amount Paid', 'RM ${paidAmount.toStringAsFixed(2)}'),
+          _buildReceiptRow(
+              'Amount Paid', 'RM ${paidAmount.toStringAsFixed(2)}'),
           if (!isPaidInFull) ...[
-            _buildReceiptRow('Remaining', 'RM ${remaining.toStringAsFixed(2)}', isHighlight: true),
+            _buildReceiptRow('Remaining', 'RM ${remaining.toStringAsFixed(2)}',
+                isHighlight: true),
             if (dueDate != null)
               _buildReceiptRow('Payment Due By', dueDate, isHighlight: true),
           ],
           _buildReceiptRow('Transaction ID', transactionId),
           _buildReceiptRow('Date', _formatDate(DateTime.now())),
           _buildReceiptRow('Time', _formatTime(DateTime.now())),
-          
+
           const SizedBox(height: AppSpacing.lg),
-          
+
           // Status banner
           Container(
             width: double.infinity,
@@ -5971,7 +7011,8 @@ class _BillPaymentReceipt extends StatelessWidget {
     );
   }
 
-  Widget _buildReceiptRow(String label, String value, {bool isHighlight = false}) {
+  Widget _buildReceiptRow(String label, String value,
+      {bool isHighlight = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(

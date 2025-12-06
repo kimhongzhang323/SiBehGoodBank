@@ -225,8 +225,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
             onTap: () {
               if (widget.onBackToHome != null) {
                 widget.onBackToHome!();
-              } else {
+              } else if (Navigator.of(context).canPop()) {
                 Navigator.of(context).pop();
+              } else {
+                // Navigate to home if can't pop
+                Navigator.of(context).pushReplacementNamed('/');
               }
             },
             child: Container(
