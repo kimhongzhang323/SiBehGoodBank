@@ -4,6 +4,7 @@ import '../widgets/widgets.dart';
 
 class TransferReceiptScreen extends StatelessWidget {
   final String amount;
+  final String currencySymbol; // <--- This was missing in your file
   final String recipientName;
   final String recipientAccount;
   final bool isReceiving;
@@ -11,9 +12,10 @@ class TransferReceiptScreen extends StatelessWidget {
   const TransferReceiptScreen({
     super.key,
     required this.amount,
+    required this.currencySymbol, // <--- Required in constructor
     required this.recipientName,
     required this.recipientAccount,
-    this.isReceiving = false, // Defaults to sending money
+    this.isReceiving = false,
   });
 
   @override
@@ -82,9 +84,9 @@ class TransferReceiptScreen extends StatelessWidget {
 
                         const SizedBox(height: 8),
 
-                        // Dynamic Amount
+                        // Dynamic Amount with Currency Symbol
                         Text(
-                          '$amountSign\$$amount',
+                          '$amountSign$currencySymbol$amount',
                           style: AppTextStyles.amountLarge.copyWith(
                             color: amountColor,
                           ),

@@ -7,7 +7,7 @@ import 'ai_chat_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'transfer_screen.dart';
-import 'receive_screen.dart'; // Import the new screen
+import 'receive_screen.dart';
 
 // Currency data model
 class CurrencyInfo {
@@ -466,17 +466,22 @@ class _HomeScreenState extends State<HomeScreen> {
             iconColor: AppColors.accent,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const TransferScreen()));
+                  builder: (context) => TransferScreen(
+                        // Pass current currency symbol
+                        currencySymbol: selectedCurrency.symbol,
+                      )));
             },
           ),
-          // NEW: Receive Button (Merged)
           QuickActionButton(
             icon: Icons.arrow_downward,
             label: 'Receive',
-            iconColor: AppColors.positive, // Green to signify incoming
+            iconColor: AppColors.positive,
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const ReceiveScreen()));
+                  builder: (context) => ReceiveScreen(
+                        // Pass current currency symbol
+                        currencySymbol: selectedCurrency.symbol,
+                      )));
             },
           ),
           QuickActionButton(

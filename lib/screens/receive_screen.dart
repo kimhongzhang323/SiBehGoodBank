@@ -4,7 +4,12 @@ import '../widgets/widgets.dart';
 import 'transfer_receipt_screen.dart';
 
 class ReceiveScreen extends StatefulWidget {
-  const ReceiveScreen({super.key});
+  final String currencySymbol; // Added currency symbol
+
+  const ReceiveScreen({
+    super.key,
+    required this.currencySymbol,
+  });
 
   @override
   State<ReceiveScreen> createState() => _ReceiveScreenState();
@@ -40,9 +45,10 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
       MaterialPageRoute(
         builder: (context) => TransferReceiptScreen(
           amount: _amountController.text,
-          recipientName: 'Sender Name', // Displaying who money came FROM
+          currencySymbol: widget.currencySymbol, // Pass symbol to receipt
+          recipientName: 'Sender Name',
           recipientAccount: '**** 1234',
-          isReceiving: true, // <--- CRITICAL UPDATE: Sets the UI to Green/+
+          isReceiving: true,
         ),
       ),
     );
@@ -76,7 +82,7 @@ class _ReceiveScreenState extends State<ReceiveScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               style: AppTextStyles.displayMedium,
               decoration: InputDecoration(
-                prefixText: '\$ ',
+                prefixText: '${widget.currencySymbol} ', // Use dynamic symbol
                 hintText: '0.00',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
