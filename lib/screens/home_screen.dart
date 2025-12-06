@@ -4,6 +4,7 @@ import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'analytics_screen.dart';
 import 'ai_chat_screen.dart';
+import "transfer_screen.dart";
 
 /// Home / Balance Overview screen
 class HomeScreen extends StatelessWidget {
@@ -174,7 +175,11 @@ class HomeScreen extends StatelessWidget {
             label: 'Transfer',
             iconColor: AppColors.accent,
             onTap: () {
-              // Handle transfer
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TransferScreen(),
+                ),
+              );
             },
           ),
           QuickActionButton(
