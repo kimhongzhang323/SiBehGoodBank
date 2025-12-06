@@ -3,8 +3,6 @@ import '../../constants/constants.dart';
 import '../../widgets/widgets.dart';
 import 'account_preferences_screen.dart';
 
-/// Family Chain setup screen - optional feature to monitor
-/// children (under 18) or senior citizens' transactions
 class FamilyChainScreen extends StatefulWidget {
   const FamilyChainScreen({super.key});
 
@@ -13,325 +11,290 @@ class FamilyChainScreen extends StatefulWidget {
 }
 
 class _FamilyChainScreenState extends State<FamilyChainScreen> {
-  final List<FamilyMember> _familyMembers = [];
   bool _enableFamilyChain = false;
+  final List<FamilyMember> _familyMembers = [];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.cardBackground,
-      appBar: _buildAppBar(),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Progress indicator
-            _buildProgressIndicator(),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      body: HolographicBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeader(),
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // Enable toggle
-                    _buildEnableToggle(),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // Family chain explanation
-                    if (_enableFamilyChain) ...[
-                      _buildExplanationCard(),
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Member type selection
-                      _buildMemberTypeSection(),
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Added members list
-                      if (_familyMembers.isNotEmpty) ...[
-                        _buildMembersList(),
-                        const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.arrow_back_ios,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Family Chain',
+                            style: AppTextStyles.headlineLarge,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 48),
                       ],
-
-                      // Notification settings
-                      _buildNotificationSettings(),
-                      const SizedBox(height: AppSpacing.xl),
-                    ],
-
-                    // Info card
-                    _buildInfoCard(),
+                    ),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Step 4 of 5',
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: AppSpacing.md),
+                    // Progress indicator
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Expanded(
+                          child: Container(
+                            height: 4,
+                            margin: EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              color: index < 4
+                                  ? AppColors.accent
+                                  : AppColors.accent.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
                   ],
                 ),
               ),
-            ),
 
-            // Bottom button
-            _buildBottomButton(),
-          ],
-        ),
-      ),
-    );
-  }
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Info Card
+                      GlassCard(
+                        padding: EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(AppSpacing.sm),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.family_restroom,
+                                    color: AppColors.accent,
+                                    size: 28,
+                                  ),
+                                ),
+                                SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Family Monitoring',
+                                        style: AppTextStyles.headlineSmall,
+                                      ),
+                                      Text(
+                                        'Optional feature',
+                                        style: AppTextStyles.labelSmall.copyWith(
+                                          color: AppColors.positive,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Monitor transactions of family members under 18 or senior citizens (65+) to help protect them from fraud and unauthorized transfers.',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: AppColors.cardBackground,
-      elevation: 0,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                      SizedBox(height: AppSpacing.lg),
+
+                      // Enable Toggle
+                      GlassCard(
+                        padding: EdgeInsets.all(AppSpacing.lg),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Enable Family Chain',
+                                    style: AppTextStyles.bodyLarge.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: AppSpacing.xs),
+                                  Text(
+                                    'You can always set this up later in Settings',
+                                    style: AppTextStyles.labelSmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _enableFamilyChain,
+                              onChanged: (value) {
+                                setState(() {
+                                  _enableFamilyChain = value;
+                                });
+                              },
+                              activeColor: AppColors.accent,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      if (_enableFamilyChain) ...[
+                        SizedBox(height: AppSpacing.lg),
+                        _buildSecurityNotice(),
+                        SizedBox(height: AppSpacing.lg),
+                        _buildVerificationRequirements(),
+                        SizedBox(height: AppSpacing.lg),
+                        Text('Family Members', style: AppTextStyles.headlineSmall),
+                        SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'Add family members you want to monitor. Each member must verify and consent.',
+                          style: AppTextStyles.labelSmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        SizedBox(height: AppSpacing.md),
+                        ..._familyMembers.map((member) => _buildMemberCard(member)),
+                        GestureDetector(
+                          onTap: () => _showAddMemberDialog(),
+                          child: GlassCard(
+                            padding: EdgeInsets.all(AppSpacing.lg),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_circle_outline, color: AppColors.accent),
+                                SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  'Add Family Member',
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: AppColors.accent,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: AppSpacing.lg),
+                        _buildTermsSection(),
+                      ],
+                      SizedBox(height: AppSpacing.xl),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom Button
+              Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: PrimaryButton(
+                  text: _enableFamilyChain ? 'Continue with Family Chain' : 'Skip & Continue',
+                  onPressed: () {
+                    if (_enableFamilyChain && _familyMembers.isEmpty) {
+                      _showNoMembersWarning();
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AccountPreferencesScreen(),
+                        ),
+                      );
+                    }
+                  },
+                ),
               ),
             ],
           ),
-          child: const Icon(
-            Icons.arrow_back_ios_new,
-            size: 16,
-            color: AppColors.textPrimary,
-          ),
         ),
-        onPressed: () => Navigator.pop(context),
       ),
-      title: const Text(
-        'Family Chain',
-        style: AppTextStyles.headlineSmall,
-      ),
-      centerTitle: true,
-      actions: [
-        TextButton(
-          onPressed: () => _skipToNext(),
-          child: Text(
-            'Skip',
-            style: AppTextStyles.labelLarge.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildProgressIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenPadding,
-        vertical: AppSpacing.md,
-      ),
+  Widget _buildSecurityNotice() {
+    return GlassCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Icon(Icons.security, color: const Color(0xFFFF9800), size: 24),
+              SizedBox(width: AppSpacing.sm),
               Text(
-                'Step 4 of 5',
-                style: AppTextStyles.labelMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '80%',
-                style: AppTextStyles.labelMedium.copyWith(
-                  color: AppColors.accent,
-                  fontWeight: FontWeight.w600,
+                'Security Notice',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFFF9800),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          LinearProgressIndicator(
-            value: 0.8,
-            backgroundColor: AppColors.lavender.withOpacity(0.3),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
-            borderRadius: BorderRadius.circular(4),
-            minHeight: 6,
-          ),
+          SizedBox(height: AppSpacing.md),
+          _buildSecurityItem(Icons.lock_clock, '72-Hour Cooling Period',
+              'Changes to Family Chain take 72 hours to activate for security.'),
+          SizedBox(height: AppSpacing.sm),
+          _buildSecurityItem(Icons.notifications_active, 'Mutual Notifications',
+              'Both parties receive alerts for all monitoring activities.'),
+          SizedBox(height: AppSpacing.sm),
+          _buildSecurityItem(Icons.gavel, 'Legal Compliance',
+              'This feature complies with financial regulations and privacy laws.'),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
+  Widget _buildSecurityItem(IconData icon, String title, String description) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Family icon
         Container(
-          width: 64,
-          height: 64,
+          padding: EdgeInsets.all(6),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.accentBlue.withOpacity(0.2),
-                AppColors.lavender.withOpacity(0.3),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.accent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(
-            Icons.family_restroom,
-            color: AppColors.accentBlue,
-            size: 32,
-          ),
+          child: Icon(icon, color: AppColors.accent, size: 16),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        const Text(
-          'Family Chain\nProtection',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Keep your loved ones safe. Get notified when children under 18 or senior family members make transfers.',
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEnableToggle() {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-        border: Border.all(
-          color: _enableFamilyChain ? AppColors.accent : AppColors.glassBorder,
-          width: _enableFamilyChain ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _enableFamilyChain
-                  ? AppColors.accent.withOpacity(0.1)
-                  : AppColors.lavender.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              Icons.link,
-              color: _enableFamilyChain
-                  ? AppColors.accent
-                  : AppColors.textSecondary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Enable Family Chain',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'Monitor transfers for family members',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _enableFamilyChain,
-            onChanged: (value) {
-              setState(() {
-                _enableFamilyChain = value;
-              });
-            },
-            activeColor: AppColors.accent,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExplanationCard() {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.accentBlue.withOpacity(0.1),
-            AppColors.lavender.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(
-          color: AppColors.accentBlue.withOpacity(0.2),
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildFeatureRow(
-            Icons.notifications_active,
-            'Real-time Alerts',
-            'Get instant notifications for every transfer',
-          ),
-          const Divider(height: AppSpacing.lg),
-          _buildFeatureRow(
-            Icons.visibility,
-            'Transaction Visibility',
-            'See who they\'re sending money to',
-          ),
-          const Divider(height: AppSpacing.lg),
-          _buildFeatureRow(
-            Icons.security,
-            'Peace of Mind',
-            'Protect vulnerable family members from scams',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureRow(IconData icon, String title, String subtitle) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.accentBlue, size: 20),
-        const SizedBox(width: AppSpacing.md),
+        SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTextStyles.labelLarge),
-              Text(
-                subtitle,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
+              Text(title, style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600)),
+              Text(description, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -339,586 +302,511 @@ class _FamilyChainScreenState extends State<FamilyChainScreen> {
     );
   }
 
-  Widget _buildMemberTypeSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Add Family Members', style: AppTextStyles.titleLarge),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMemberTypeCard(
-                icon: Icons.child_care,
-                title: 'Child',
-                subtitle: 'Under 18 years',
-                color: AppColors.pinkTint,
-                onTap: () => _showAddMemberDialog(MemberType.child),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: _buildMemberTypeCard(
-                icon: Icons.elderly,
-                title: 'Senior',
-                subtitle: '60+ years',
-                color: AppColors.lavender,
-                onTap: () => _showAddMemberDialog(MemberType.senior),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMemberTypeCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          border: Border.all(color: AppColors.glassBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppColors.textPrimary, size: 28),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(title, style: AppTextStyles.titleMedium),
-            Text(
-              subtitle,
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add, size: 16, color: AppColors.accent),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Add',
-                    style: AppTextStyles.labelMedium.copyWith(
-                      color: AppColors.accent,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+  Widget _buildVerificationRequirements() {
+    return GlassCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Required Verification Steps', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700)),
+          SizedBox(height: AppSpacing.md),
+          _buildVerificationStep(1, 'Identity Verification', 'Upload NRIC/Passport of family member', true),
+          _buildVerificationStep(2, 'Relationship Proof', 'Birth certificate or legal guardianship document', true),
+          _buildVerificationStep(3, 'OTP Verification', 'Family member receives SMS/Email code', true),
+          _buildVerificationStep(4, 'Video Consent', 'Brief video recording of consent (for seniors)', false),
+          _buildVerificationStep(5, 'Cooling Period', '72-hour waiting before activation', true),
+        ],
       ),
     );
   }
 
-  Widget _buildMembersList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Linked Members', style: AppTextStyles.titleLarge),
-            Text(
-              '${_familyMembers.length} added',
-              style: AppTextStyles.labelMedium.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: _familyMembers.map((member) {
-              final index = _familyMembers.indexOf(member);
-              return Column(
-                children: [
-                  _buildMemberTile(member, index),
-                  if (index < _familyMembers.length - 1)
-                    const Divider(height: 1, indent: 72),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMemberTile(FamilyMember member, int index) {
-    final isChild = member.type == MemberType.child;
-
+  Widget _buildVerificationStep(int step, String title, String description, bool required) {
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
-              color: isChild
-                  ? AppColors.pinkTint.withOpacity(0.3)
-                  : AppColors.lavender.withOpacity(0.3),
-              shape: BoxShape.circle,
+              color: AppColors.accent.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-              isChild ? Icons.child_care : Icons.elderly,
-              color: AppColors.textPrimary,
-              size: 24,
+            child: Center(
+              child: Text('$step', style: AppTextStyles.bodySmall.copyWith(color: AppColors.accent, fontWeight: FontWeight.w700)),
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
+          SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(member.name, style: AppTextStyles.titleMedium),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
+                    Text(title, style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600)),
+                    if (required) ...[
+                      SizedBox(width: AppSpacing.xs),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.negative.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('Required', style: TextStyle(fontSize: 10, color: AppColors.negative, fontWeight: FontWeight.w600)),
                       ),
-                      decoration: BoxDecoration(
-                        color: isChild
-                            ? AppColors.pinkTint.withOpacity(0.3)
-                            : AppColors.lavender.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        isChild ? 'Child' : 'Senior',
-                        style: AppTextStyles.labelSmall,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      member.relationship,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
+                    ],
                   ],
                 ),
+                Text(description, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondary)),
               ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.remove_circle_outline,
-              color: AppColors.negative,
-            ),
-            onPressed: () {
-              setState(() {
-                _familyMembers.removeAt(index);
-              });
-            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNotificationSettings() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Notification Settings', style: AppTextStyles.titleLarge),
-        const SizedBox(height: AppSpacing.md),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              _buildNotificationOption(
-                icon: Icons.attach_money,
-                title: 'All Transfers',
-                subtitle: 'Notify for every outgoing transfer',
-                isEnabled: true,
-              ),
-              const Divider(height: 1, indent: 72),
-              _buildNotificationOption(
-                icon: Icons.warning_amber,
-                title: 'Large Amounts',
-                subtitle: 'Extra alert for transfers over \$100',
-                isEnabled: true,
-              ),
-              const Divider(height: 1, indent: 72),
-              _buildNotificationOption(
-                icon: Icons.person_off,
-                title: 'New Recipients',
-                subtitle: 'Alert when sending to new contacts',
-                isEnabled: true,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNotificationOption({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool isEnabled,
-  }) {
+  Widget _buildMemberCard(FamilyMember member) {
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.lavender.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: AppColors.accent, size: 20),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTextStyles.titleMedium),
-                Text(
-                  subtitle,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.check_circle,
-            color: AppColors.positive,
-            size: 24,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.lavender.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        border: Border.all(
-          color: AppColors.lavender.withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.info_outline,
-              color: AppColors.accent,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'This feature is optional',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'You can enable or modify Family Chain anytime in Settings.',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomButton() {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.screenPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PrimaryButton(
-            text: _enableFamilyChain && _familyMembers.isNotEmpty
-                ? 'Continue with ${_familyMembers.length} Member${_familyMembers.length > 1 ? 's' : ''}'
-                : 'Continue',
-            backgroundColor: AppColors.textPrimary,
-            textColor: Colors.white,
-            onPressed: () => _navigateToNext(),
-          ),
-          if (!_enableFamilyChain) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'You can set this up later in Settings',
-              style: AppTextStyles.labelSmall.copyWith(
-                color: AppColors.textSecondary,
+      padding: EdgeInsets.only(bottom: AppSpacing.md),
+      child: GlassCard(
+        padding: EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: member.isMinor ? AppColors.accentBlue.withValues(alpha: 0.2) : AppColors.accent.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(24),
               ),
+              child: Icon(
+                member.isMinor ? Icons.child_care : Icons.elderly,
+                color: member.isMinor ? AppColors.accentBlue : AppColors.accent,
+              ),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(member.name, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                  Row(
+                    children: [
+                      Text(member.relationship, style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondary)),
+                      SizedBox(width: AppSpacing.sm),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(member.status).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(member.status, style: TextStyle(fontSize: 10, color: _getStatusColor(member.status), fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => _removeMember(member),
+              icon: Icon(Icons.remove_circle_outline, color: AppColors.negative),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Pending Consent':
+        return const Color(0xFFFF9800);
+      case 'Verified':
+        return AppColors.positive;
+      case 'Cooling Period':
+        return AppColors.accentBlue;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  Widget _buildTermsSection() {
+    return GlassCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.article_outlined, color: AppColors.accent, size: 20),
+              SizedBox(width: AppSpacing.sm),
+              Text('Terms & Responsibilities', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          Text('By enabling Family Chain, you agree to:', style: AppTextStyles.bodySmall),
+          SizedBox(height: AppSpacing.sm),
+          _buildTermItem('Use this feature only for legitimate family protection'),
+          _buildTermItem('Not misuse monitoring for unauthorized surveillance'),
+          _buildTermItem('Respect the privacy and autonomy of monitored members'),
+          _buildTermItem('Allow monitored members to request removal at any time'),
+          _buildTermItem('Accept liability for any misuse of this feature'),
+          SizedBox(height: AppSpacing.md),
+          Container(
+            padding: EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.negative.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.negative.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber, color: AppColors.negative, size: 20),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Misuse of Family Chain may result in account suspension and legal action.',
+                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.negative),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _showAddMemberDialog(MemberType type) {
+  Widget _buildTermItem(String text) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle, color: AppColors.positive, size: 16),
+          SizedBox(width: AppSpacing.xs),
+          Expanded(child: Text(text, style: AppTextStyles.labelSmall)),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMemberDialog() {
     final nameController = TextEditingController();
-    String selectedRelationship = type == MemberType.child ? 'Son' : 'Parent';
-    final relationships = type == MemberType.child
-        ? ['Son', 'Daughter', 'Grandchild', 'Nephew', 'Niece', 'Other']
-        : ['Parent', 'Grandparent', 'Spouse', 'Relative', 'Other'];
+    final phoneController = TextEditingController();
+    final nricController = TextEditingController();
+    String? selectedType;
+    String? selectedRelationship;
+    bool consentChecked = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
+        builder: (context, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(24),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenPadding),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.glassBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+          child: Column(
+            children: [
+              Container(
+                margin: EdgeInsets.only(top: AppSpacing.md),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textSecondary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Header
-                Row(
+              ),
+              Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Row(
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: type == MemberType.child
-                            ? AppColors.pinkTint.withOpacity(0.3)
-                            : AppColors.lavender.withOpacity(0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        type == MemberType.child
-                            ? Icons.child_care
-                            : Icons.elderly,
-                        color: AppColors.textPrimary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Text(
-                      'Add ${type == MemberType.child ? 'Child' : 'Senior'} Member',
-                      style: AppTextStyles.headlineSmall,
-                    ),
+                    Text('Add Family Member', style: AppTextStyles.headlineSmall),
+                    Spacer(),
+                    IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close)),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // Name field
-                Text('Full Name', style: AppTextStyles.labelLarge),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter their full name',
-                    filled: true,
-                    fillColor: AppColors.cardBackground,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.all(16),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Member Type', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                      SizedBox(height: AppSpacing.sm),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTypeOption('Minor (Under 18)', Icons.child_care, selectedType == 'minor', () => setModalState(() => selectedType = 'minor'))),
+                          SizedBox(width: AppSpacing.md),
+                          Expanded(child: _buildTypeOption('Senior (65+)', Icons.elderly, selectedType == 'senior', () => setModalState(() => selectedType = 'senior'))),
+                        ],
+                      ),
+                      SizedBox(height: AppSpacing.lg),
+                      Text('Relationship', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                      SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          _buildRelationshipChip('Parent', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                          _buildRelationshipChip('Child', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                          _buildRelationshipChip('Grandparent', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                          _buildRelationshipChip('Spouse', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                          _buildRelationshipChip('Sibling', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                          _buildRelationshipChip('Guardian', selectedRelationship, (v) => setModalState(() => selectedRelationship = v)),
+                        ],
+                      ),
+                      SizedBox(height: AppSpacing.lg),
+                      _buildInputField('Full Name (as per NRIC)', nameController, TextInputType.name, 'Enter full legal name'),
+                      SizedBox(height: AppSpacing.md),
+                      _buildInputField('NRIC / Passport Number', nricController, TextInputType.text, 'e.g., S1234567A'),
+                      SizedBox(height: AppSpacing.md),
+                      _buildInputField('Phone Number', phoneController, TextInputType.phone, '+65 XXXX XXXX'),
+                      SizedBox(height: AppSpacing.lg),
+                      Container(
+                        padding: EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentBlue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.upload_file, color: AppColors.accentBlue, size: 20),
+                                SizedBox(width: AppSpacing.sm),
+                                Text('Documents Required', style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600, color: AppColors.accentBlue)),
+                              ],
+                            ),
+                            SizedBox(height: AppSpacing.sm),
+                            Text(
+                              'After submission, you will need to upload:\n• Family member\'s NRIC/Passport\n• Proof of relationship (Birth cert/Marriage cert)\n• Guardianship document (if applicable)',
+                              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: AppSpacing.lg),
+                      GestureDetector(
+                        onTap: () => setModalState(() => consentChecked = !consentChecked),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: consentChecked ? AppColors.accent : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: consentChecked ? AppColors.accent : AppColors.textSecondary, width: 2),
+                              ),
+                              child: consentChecked ? Icon(Icons.check, size: 16, color: Colors.white) : null,
+                            ),
+                            SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'I confirm that I have the legal authority to add this family member and that they have been informed about this monitoring arrangement.',
+                                style: AppTextStyles.labelSmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: AppSpacing.xl),
+                    ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Relationship dropdown
-                Text('Relationship', style: AppTextStyles.labelLarge),
-                const SizedBox(height: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: selectedRelationship,
-                      isExpanded: true,
-                      items: relationships.map((r) {
-                        return DropdownMenuItem(
-                          value: r,
-                          child: Text(r),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() {
-                            selectedRelationship = value;
+              ),
+              Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: PrimaryButton(
+                  text: 'Send Verification Request',
+                  onPressed: (selectedType != null && selectedRelationship != null && nameController.text.isNotEmpty && nricController.text.isNotEmpty && phoneController.text.isNotEmpty && consentChecked)
+                      ? () {
+                          setState(() {
+                            _familyMembers.add(FamilyMember(name: nameController.text, relationship: selectedRelationship!, isMinor: selectedType == 'minor', status: 'Pending Consent'));
                           });
+                          Navigator.pop(context);
+                          _showVerificationSentDialog(nameController.text);
                         }
-                      },
-                    ),
-                  ),
+                      : null,
                 ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // Add button
-                PrimaryButton(
-                  text: 'Add Member',
-                  backgroundColor: AppColors.accent,
-                  textColor: Colors.white,
-                  onPressed: () {
-                    if (nameController.text.trim().isNotEmpty) {
-                      setState(() {
-                        _familyMembers.add(FamilyMember(
-                          name: nameController.text.trim(),
-                          relationship: selectedRelationship,
-                          type: type,
-                        ));
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _skipToNext() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AccountPreferencesScreen(),
+  Widget _buildTypeOption(String label, IconData icon, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent.withValues(alpha: 0.1) : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? AppColors.accent : AppColors.textSecondary.withValues(alpha: 0.3), width: selected ? 2 : 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: selected ? AppColors.accent : AppColors.textSecondary, size: 32),
+            SizedBox(height: AppSpacing.xs),
+            Text(label, style: AppTextStyles.labelSmall.copyWith(color: selected ? AppColors.accent : AppColors.textSecondary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal), textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
 
-  void _navigateToNext() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AccountPreferencesScreen(),
+  Widget _buildRelationshipChip(String label, String? selected, Function(String) onSelect) {
+    final isSelected = selected == label;
+    return GestureDetector(
+      onTap: () => onSelect(label),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accent : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? AppColors.accent : AppColors.textSecondary.withValues(alpha: 0.3)),
+        ),
+        child: Text(label, style: AppTextStyles.labelSmall.copyWith(color: isSelected ? Colors.white : AppColors.textPrimary, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
       ),
     );
   }
-}
 
-enum MemberType {
-  child,
-  senior,
+  Widget _buildInputField(String label, TextEditingController controller, TextInputType keyboardType, String hint) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+        SizedBox(height: AppSpacing.xs),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.3)),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            style: AppTextStyles.bodyMedium,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(AppSpacing.md),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showVerificationSentDialog(String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(color: AppColors.positive.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: Icon(Icons.send, color: AppColors.positive, size: 48),
+            ),
+            SizedBox(height: AppSpacing.lg),
+            Text('Verification Sent!', style: AppTextStyles.headlineSmall),
+            SizedBox(height: AppSpacing.sm),
+            Text(
+              'A verification request has been sent to $name. They will receive:\n\n• SMS with OTP code\n• Email verification link\n• In-app consent request\n\nOnce they verify, you\'ll need to upload the required documents.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: AppSpacing.md),
+            Container(
+              padding: EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(color: const Color(0xFFFF9800).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule, color: const Color(0xFFFF9800), size: 20),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(child: Text('72-hour cooling period applies after verification', style: AppTextStyles.labelSmall.copyWith(color: const Color(0xFFFF9800)))),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Got it', style: TextStyle(color: AppColors.accent)))],
+      ),
+    );
+  }
+
+  void _removeMember(FamilyMember member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Remove ${member.name}?'),
+        content: Text('This will cancel the verification request. You can add them again later.', style: AppTextStyles.bodySmall),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              setState(() => _familyMembers.remove(member));
+              Navigator.pop(context);
+            },
+            child: Text('Remove', style: TextStyle(color: AppColors.negative)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNoMembersWarning() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('No Members Added'),
+        content: Text('You enabled Family Chain but haven\'t added any members. Would you like to add someone or disable the feature?', style: AppTextStyles.bodySmall),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => _enableFamilyChain = false);
+            },
+            child: Text('Disable'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showAddMemberDialog();
+            },
+            child: Text('Add Member', style: TextStyle(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class FamilyMember {
   final String name;
   final String relationship;
-  final MemberType type;
+  final bool isMinor;
+  final String status;
 
-  FamilyMember({
-    required this.name,
-    required this.relationship,
-    required this.type,
-  });
+  FamilyMember({required this.name, required this.relationship, required this.isMinor, required this.status});
 }
