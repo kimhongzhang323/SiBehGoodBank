@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../constants/constants.dart';
 import '../widgets/widgets.dart';
 import 'analytics_screen.dart';
+import 'ai_chat_screen.dart';
 
 /// Home / Balance Overview screen
 class HomeScreen extends StatelessWidget {
@@ -201,7 +202,11 @@ class HomeScreen extends StatelessWidget {
             label: 'More',
             iconColor: AppColors.textSecondary,
             onTap: () {
-              // Handle more options
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AiChatScreen(),
+                ),
+              );
             },
           ),
         ],
